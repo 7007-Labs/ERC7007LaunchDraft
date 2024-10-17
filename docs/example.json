@@ -1,0 +1,23 @@
+{
+  "name": "nft name",
+  "description": "Stable Diffusion is a latent text-to-image diffusion model capable of generating photo-realistic images given any text input.",
+  "image": "https://gateway.pinata.cloud/ipfs/QmY7oYSRXX9R1VYYsB5BvwJNjrXFkx22mUbPP3KMFn5BE4",
+  "attributes": [
+    {
+      "trait_type": "positive_prompt",
+      "value": "a dog"
+    },
+    {
+      "trait_type": "seed",
+      "value": "12"
+    },
+    {
+      "trait_type": "author",
+      "value": "0x68Ee81fc79eE4c7F7f319C39D41E15e44f35B63a"
+    },
+    {
+      "trait_type": "model",
+      "value": "Stable Diffusion"
+    }
+  ]
+}

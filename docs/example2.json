@@ -1,0 +1,9 @@
+{
+  "name": "nft name",
+  "description": "nft description",
+  "image": "ipfs://QmY7oYSRXX9R1VYYsB5BvwJNjrXFkx22mUbPP3KMFn5BE4",
+  "prompt": "a dog",
+  "aigc_type": "image",
+  "aigc_data": "ipfs://QmY7oYSRXX9R1VYYsB5BvwJNjrXFkx22mUbPP3KMFn5BE4",
+  "proof_type": "fraud"
+}
