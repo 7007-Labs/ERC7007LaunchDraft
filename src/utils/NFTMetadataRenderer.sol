@@ -6,98 +6,94 @@ import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 
 /// NFT metadata library for rendering metadata associated with editions
 library NFTMetadataRenderer {
-    /// Generate ERC7007 metadata from storage information as base64-json blob
-    /// Combines the media data and metadata
-    /// @param name Name of NFT in metadata
-    /// @param description Description of NFT in metadata
-    /// @param imageURI URI of image to render for edition
-    /// @param animationURI URI of animation to render for edition
-    /// @param tokenOfEdition Token ID for specific token
-    /// @param editionSize Size of entire edition to show
-    // todo: 参数需要修改
     function createMetadataAIGC(
         string memory name,
         string memory description,
         string memory imageURI,
-        string memory animationURI,
-        uint256 tokenOfEdition,
-        uint256 editionSize
+        string memory prompt,
+        string memory aigcType,
+        string memory aigcData,
+        string memory proofType,
+        string memory provider,
+        string memory modelId
     ) internal pure returns (string memory) {
-        string memory _tokenMediaData = tokenMediaData(imageURI, animationURI);
-        bytes memory json = createMetadataJSON(name, description, _tokenMediaData, tokenOfEdition, editionSize);
+        string memory _tokenMediaData = tokenMediaData(imageURI, "");
+        bytes memory json = createMetadataJSON(
+            name, description, _tokenMediaData, prompt, aigcType, aigcData, proofType, provider, modelId
+        );
         return encodeMetadataJSON(json);
     }
 
-    function encodeContractURIJSON(
-        string memory name,
-        string memory description,
-        string memory imageURI,
-        string memory animationURI,
-        uint256 royaltyBPS,
-        address royaltyRecipient
-    ) internal pure returns (string memory) {
-        bytes memory imageSpace = bytes("");
-        if (bytes(imageURI).length > 0) {
-            imageSpace = abi.encodePacked('", "image": "', imageURI);
-        }
-        bytes memory animationSpace = bytes("");
-        if (bytes(animationURI).length > 0) {
-            animationSpace = abi.encodePacked('", "animation_url": "', animationURI);
-        }
+    // function encodeContractURIJSON(
+    //     string memory name,
+    //     string memory description,
+    //     string memory imageURI,
+    //     string memory animationURI,
+    //     uint256 royaltyBPS,
+    //     address royaltyRecipient
+    // ) internal pure returns (string memory) {
+    //     bytes memory imageSpace = bytes("");
+    //     if (bytes(imageURI).length > 0) {
+    //         imageSpace = abi.encodePacked('", "image": "', imageURI);
+    //     }
+    //     bytes memory animationSpace = bytes("");
+    //     if (bytes(animationURI).length > 0) {
+    //         animationSpace = abi.encodePacked('", "animation_url": "', animationURI);
+    //     }
 
-        return string(
-            encodeMetadataJSON(
-                abi.encodePacked(
-                    '{"name": "',
-                    name,
-                    '", "description": "',
-                    description,
-                    // this is for opensea since they don't respect ERC2981 right now
-                    '", "seller_fee_basis_points": ',
-                    Strings.toString(royaltyBPS),
-                    ', "fee_recipient": "',
-                    Strings.toHexString(uint256(uint160(royaltyRecipient)), 20),
-                    imageSpace,
-                    animationSpace,
-                    '"}'
-                )
-            )
-        );
-    }
+    //     return string(
+    //         encodeMetadataJSON(
+    //             abi.encodePacked(
+    //                 '{"name": "',
+    //                 name,
+    //                 '", "description": "',
+    //                 description,
+    //                 // this is for opensea since they don't respect ERC2981 right now
+    //                 '", "seller_fee_basis_points": ',
+    //                 Strings.toString(royaltyBPS),
+    //                 ', "fee_recipient": "',
+    //                 Strings.toHexString(uint256(uint160(royaltyRecipient)), 20),
+    //                 imageSpace,
+    //                 animationSpace,
+    //                 '"}'
+    //             )
+    //         )
+    //     );
+    // }
 
-    /// Function to create the metadata json string for the nft edition
-    /// @param name Name of NFT in metadata
-    /// @param description Description of NFT in metadata
-    /// @param mediaData Data for media to include in json object
-    /// @param tokenOfEdition Token ID for specific token
-    /// @param editionSize Size of entire edition to show
     function createMetadataJSON(
         string memory name,
         string memory description,
         string memory mediaData,
-        uint256 tokenOfEdition,
-        uint256 editionSize
+        string memory prompt,
+        string memory aigcType,
+        string memory aigcData,
+        string memory proofType,
+        string memory provider,
+        string memory modelId
     ) internal pure returns (bytes memory) {
-        bytes memory editionSizeText;
-        if (editionSize > 0) {
-            editionSizeText = abi.encodePacked("/", Strings.toString(editionSize));
-        }
         return abi.encodePacked(
             '{"name": "',
             name,
-            " ",
-            Strings.toString(tokenOfEdition),
-            editionSizeText,
             '", "',
             'description": "',
             description,
             '", "',
             mediaData,
-            'properties": {"number": ',
-            Strings.toString(tokenOfEdition),
-            ', "name": "',
-            name,
-            '"}}'
+            '", "',
+            'prompt": "',
+            prompt,
+            'aigc_type": "',
+            aigcType,
+            'aigc_data": "',
+            aigcData,
+            'proof_type": "',
+            proofType,
+            'provider": "',
+            provider,
+            'modelId": "',
+            modelId,
+            '"}'
         );
     }
 

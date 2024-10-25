@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 interface IRoyaltyManager {
-    function calculateRoyaltyFeeAndGetRecipient(address collection, uint256 tokenId, uint256 amount)
+    function calculateRoyaltyFeeAndGetRecipient(address pair, uint256[] memory tokenIds, uint256 price)
         external
         view
         returns (address, uint256);

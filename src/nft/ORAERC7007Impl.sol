@@ -7,10 +7,13 @@ import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 import {ERC721RoyaltyUpgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721RoyaltyUpgradeable.sol";
 import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
-import {AIOracleCallbackReceiver} from "ora/AIOracleCallbackReceiver.sol";
-import {IAIOracle} from "ora/interfaces/IAIOracle.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {AIOracleCallbackReceiver} from "../libraries/AIOracleCallbackReceiver.sol";
+import {IAIOracle} from "../interfaces/IAIOracle.sol";
 import {IERC7007Updatable} from "../interfaces/IERC7007Updatable.sol";
+// import {IERC7007Enumerable} from "../interfaces/IERC7007Enumerable.sol";
 import {NFTMetadataRenderer} from "../utils/NFTMetadataRenderer.sol";
+import {ORAUtils} from "../utils/ORAUtils.sol";
 
 // todo: 使用openzeppelin的ERC721部分优化，等完善测试后进行
 contract ORAERC7007Impl is ERC721RoyaltyUpgradeable, IERC4906, IERC2309, IERC7007Updatable, AIOracleCallbackReceiver {
@@ -29,13 +32,18 @@ contract ORAERC7007Impl is ERC721RoyaltyUpgradeable, IERC4906, IERC2309, IERC700
     BitMaps.BitMap private _firstOwnershipChange; //记录某个nft是否完成初次ownership变更
 
     string public constant unRevealImageURI = "ipfs://xxx"; //todo: 默认图片链接
+    string public constant aigcType = "image";
+    string public constant proofType = "fraud";
+    string public constant description = ""; // todo: 增加描述
     uint64 public constant aiOracleCallbackGasLimit = 500000; // default sd: 500k
 
-    mapping(uint256 tokenId => uint256) requestIdOf; // tokenId 对应的requestId
-    mapping(uint256 tokenId => bytes) aigcDataOf; // tokenId 对应的aigcData
-    mapping(uint256 tokenId => bytes) promptOf; // tokenId 对应的prompt
-    mapping(uint256 requestId => uint256) requests; // requestId => tokenId
-    mapping(bytes32 promptHash => uint256) promptHashToRequestId;
+    mapping(bytes prompt => uint256) promptToTokenId;
+    mapping(uint256 tokenId => uint256) public seedOf; // tokenId => prompt
+    mapping(uint256 tokenId => bytes) public aigcDataOf; // tokenId 对应的aigcData
+
+    mapping(uint256 tokenId => uint256) tokenIdToRequestId; // tokenId 对应的requestId
+
+    mapping(uint256 requestId => uint256[]) requests; // requestId => tokenIds
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner");
@@ -44,7 +52,9 @@ contract ORAERC7007Impl is ERC721RoyaltyUpgradeable, IERC4906, IERC2309, IERC700
 
     // todo: 整理哪些参数放constructor，哪些放initialize,
     // 所有nft collection都一样的参数放这？
-    constructor(IAIOracle _aiOracle) initializer AIOracleCallbackReceiver(_aiOracle) {}
+    constructor(IAIOracle _aiOracle) initializer AIOracleCallbackReceiver(_aiOracle) {
+        _disableInitializers();
+    }
 
     function initialize(
         string memory name,
@@ -58,6 +68,8 @@ contract ORAERC7007Impl is ERC721RoyaltyUpgradeable, IERC4906, IERC2309, IERC700
         bool _nsfw
     ) public initializer {
         __ERC721_init(name, symbol);
+        __ERC721Royalty_init();
+
         owner = _owner;
         totalSupply = _totalSupply;
         modelId = _modelId;
@@ -82,11 +94,14 @@ contract ORAERC7007Impl is ERC721RoyaltyUpgradeable, IERC4906, IERC2309, IERC700
         // todo: 适配metadata内容
         return NFTMetadataRenderer.createMetadataAIGC(
             name(),
-            "", //todo: description
+            description, //todo: description
             imageURI,
-            "",
-            0,
-            0
+            basePrompt,
+            aigcType,
+            string(aigcDataOf[tokenId]),
+            proofType,
+            Strings.toHexString(address(aiOracle)),
+            Strings.toString(modelId)
         );
     }
 
@@ -114,6 +129,7 @@ contract ORAERC7007Impl is ERC721RoyaltyUpgradeable, IERC4906, IERC2309, IERC700
         require(msg.sender == aiOracleManager, "Only aiOracleManager");
         require(aigcDataOf[tokenId].length == 0, "AigcData exists");
 
+        promptToTokenId[prompt] = tokenId;
         aigcDataOf[tokenId] = aigcData;
         emit AigcData(tokenId, prompt, aigcData, proof);
 
@@ -127,46 +143,71 @@ contract ORAERC7007Impl is ERC721RoyaltyUpgradeable, IERC4906, IERC2309, IERC700
         override
         returns (bool success)
     {
-        uint256 requestId = promptHashToRequestId[keccak256(prompt)];
-        uint256 tokenId = requests[requestId];
+        uint256 tokenId = promptToTokenId[prompt];
+        uint256 requestId = tokenIdToRequestId[tokenId];
+
         bytes storage currentAigcData = aigcDataOf[tokenId];
         return aiOracle.isFinalized(requestId) && keccak256(aigcData) == keccak256(currentAigcData);
     }
 
     function update(bytes calldata prompt, bytes calldata aigcData) external {
         require(msg.sender == aiOracleManager, "Only aiOracleManager");
-        uint256 requestId = promptHashToRequestId[keccak256(prompt)];
-        uint256 tokenId = requests[requestId];
+        uint256 tokenId = promptToTokenId[prompt];
         aigcDataOf[tokenId] = aigcData;
 
         emit Update(tokenId, prompt, aigcData);
         emit MetadataUpdate(tokenId);
     }
 
+    function getSeed(uint256 tokenId) internal view returns (uint256) {
+        // todo: 采用随机的方式生成seed
+        return tokenId;
+    }
+
     /* aiOracleManager */
     // reveal nft metadata
-    function reveal(uint256 tokenId) external payable {
+    function reveal(uint256[] memory tokenIds) external payable {
         // todo: 改成初次售出后任意用户可以调用,理论上pair会判断是否初次交易，如果是初次交易，就会调用此函数
         require(msg.sender == pair, "Only Pair can reveal");
-        require(requestIdOf[tokenId] == 0, "Should only call once");
+        uint256 size = tokenIds.length;
+        require(size > 0);
+        bytes[] memory prompts = new bytes[](size);
+        uint256[] memory seeds = new uint256[](size);
+        bytes memory batchPrompt = "[";
+        for (uint256 i = 0; i < size; i++) {
+            if (i > 0) {
+                batchPrompt = bytes.concat(batchPrompt, ",");
+            }
+            uint256 seed = getSeed(tokenIds[i]);
+            bytes memory prompt = ORAUtils.buildPrompt(basePrompt, seed);
+            prompts[i] = prompt;
+            seeds[i] = seed;
+            batchPrompt = bytes.concat(batchPrompt, prompt);
+        }
+        batchPrompt = bytes.concat(batchPrompt, "]");
 
-        // todo: prompt = baseprompt + salt
-        bytes memory prompt = "";
-
-        // todo: 考虑此处防重入?
-        uint256 requestId = aiOracle.requestCallback{value: msg.value}(
-            modelId, bytes(prompt), address(this), aiOracleCallbackGasLimit, ""
+        uint64 gasLimit = getGasLimit(tokenIds.length);
+        uint256 requestId = aiOracle.requestBatchInference{value: msg.value}(
+            size, modelId, bytes(batchPrompt), address(this), gasLimit, "", IAIOracle.DA.Calldata, IAIOracle.DA.Calldata
         );
-        // todo: 合并结构?
-        requestIdOf[tokenId] = requestId;
-        requests[requestId] = tokenId;
-        promptOf[tokenId] = prompt;
-        promptHashToRequestId[keccak256(prompt)] = requestId;
+
+        for (uint256 i = 0; i < size; i++) {
+            uint256 tokenId = tokenIds[i];
+            seedOf[tokenId] = seeds[i];
+            tokenIdToRequestId[tokenId] = requestId;
+        }
+
+        requests[requestId] = tokenIds;
+    }
+
+    function getGasLimit(uint256 num) internal pure returns (uint64) {
+        // todo: 需要细化
+        return uint64(10);
     }
 
     // 估算调用aiOracle需要的费用
-    function estimateFee() public view returns (uint256) {
-        return aiOracle.estimateFee(modelId, aiOracleCallbackGasLimit);
+    function estimateFee(uint256 num) public view returns (uint256) {
+        return aiOracle.estimateFeeBatch(modelId, getGasLimit(num), num);
     }
 
     // 注意此函数在opML下可能会被多次调用
@@ -176,12 +217,21 @@ contract ORAERC7007Impl is ERC721RoyaltyUpgradeable, IERC4906, IERC2309, IERC700
         onlyAIOracleCallback
     {
         // todo: 检查requestId
-        uint256 tokenId = requests[requestId];
-        bytes storage prompt = promptOf[tokenId];
-        if (aigcDataOf[tokenId].length == 0) {
-            this.addAigcData(tokenId, prompt, output, bytes(""));
-        } else {
-            this.update(prompt, output);
+        uint256[] storage tokenIds = requests[requestId];
+        require(tokenIds.length > 0);
+
+        bytes[] memory cids = ORAUtils.decodeCIDs(output);
+        require(tokenIds.length == cids.length);
+
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            // bytes storage prompt = promptOf[tokenId];
+            uint256 tokenId = tokenIds[i];
+            bytes memory prompt = ORAUtils.buildPrompt(basePrompt, seedOf[tokenId]);
+            if (aigcDataOf[tokenId].length == 0) {
+                this.addAigcData(tokenId, prompt, cids[i], bytes(""));
+            } else {
+                this.update(prompt, cids[i]);
+            }
         }
     }
 

@@ -13,6 +13,8 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
     address public erc7007ETHBeacon;
     address feeRecipient;
 
+    mapping(address nft => address) public getPair;
+
     event FeeRecipientUpdate(address indexed recipientAddress);
 
     function initialize(address owner, address _erc7007ETHBeacon) external initializer {
@@ -29,13 +31,15 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
         payable
         returns (address)
     {
-        BeaconProxy proxy = new BeaconProxy(erc7007ETHBeacon, abi.encodeCall(PairERC7007ETH.initialize, ()));
-        return address(proxy);
+        // BeaconProxy proxy = new BeaconProxy(erc7007ETHBeacon, abi.encodeCall(PairERC7007ETH.initialize, ()));
+        // return address(proxy);
+        return address(0);
     }
 
     /**
      * Admin functions
      */
+    //
 
     // pair中收的交易费用会发到这里，从这里提取
     function withdrawETHFees() external onlyOwner {}
