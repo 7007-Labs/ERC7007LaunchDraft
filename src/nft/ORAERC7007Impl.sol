@@ -11,12 +11,20 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {AIOracleCallbackReceiver} from "../libraries/AIOracleCallbackReceiver.sol";
 import {IAIOracle} from "../interfaces/IAIOracle.sol";
 import {IERC7007Updatable} from "../interfaces/IERC7007Updatable.sol";
+import {ITotalSupply} from "../interfaces/ITotalSupply.sol";
 // import {IERC7007Enumerable} from "../interfaces/IERC7007Enumerable.sol";
 import {NFTMetadataRenderer} from "../utils/NFTMetadataRenderer.sol";
 import {ORAUtils} from "../utils/ORAUtils.sol";
 
 // todo: 使用openzeppelin的ERC721部分优化，等完善测试后进行
-contract ORAERC7007Impl is ERC721RoyaltyUpgradeable, IERC4906, IERC2309, IERC7007Updatable, AIOracleCallbackReceiver {
+contract ORAERC7007Impl is
+    ERC721RoyaltyUpgradeable,
+    IERC4906,
+    IERC2309,
+    IERC7007Updatable,
+    ITotalSupply,
+    AIOracleCallbackReceiver
+{
     using BitMaps for BitMaps.BitMap;
 
     address public owner;
@@ -35,6 +43,7 @@ contract ORAERC7007Impl is ERC721RoyaltyUpgradeable, IERC4906, IERC2309, IERC700
     string public constant aigcType = "image";
     string public constant proofType = "fraud";
     string public constant description = ""; // todo: 增加描述
+    uint64 public constant addAigcDataGasLimit = 50_000; // todo: 测量
     uint64 public constant aiOracleCallbackGasLimit = 500000; // default sd: 500k
 
     mapping(bytes prompt => uint256) promptToTokenId;
@@ -167,7 +176,8 @@ contract ORAERC7007Impl is ERC721RoyaltyUpgradeable, IERC4906, IERC2309, IERC700
     /* aiOracleManager */
     // reveal nft metadata
     function reveal(uint256[] memory tokenIds) external payable {
-        // todo: 改成初次售出后任意用户可以调用,理论上pair会判断是否初次交易，如果是初次交易，就会调用此函数
+        // todo: 改成初次售出后任意用户可以调用,理论上pair会判断是否初次交易，如果是初次交易，就会调用此函数。
+        // todo: 考虑初次售出后生成seed,不调用aiOracle
         require(msg.sender == pair, "Only Pair can reveal");
         uint256 size = tokenIds.length;
         require(size > 0);

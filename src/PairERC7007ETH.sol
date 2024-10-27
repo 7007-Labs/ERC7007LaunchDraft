@@ -5,11 +5,13 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 import {PairType} from "./enums/PairType.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IPair} from "./interfaces/IPair.sol";
 import {ICurve} from "./interfaces/ICurve.sol";
+import {ITotalSupply} from "./interfaces/ITotalSupply.sol";
 import {IRoyaltyManager} from "./interfaces/IRoyaltyManager.sol";
 
 contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
@@ -22,7 +24,9 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     address public nft;
     address public bondingCurve;
     address private propertyChecker;
-    BitMaps.BitMap _hasSaled;
+    BitMaps.BitMap _notOwnedNFTs;
+    uint256 _saleStartTokenID; //从这个id开始卖，这个id后面的都是unReveal的
+
     /**
      * @dev 50%, must <= 1 - MAX_PROTOCOL_FEE (set in LSSVMPairFactory)
      */
@@ -73,18 +77,53 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         propertyChecker = _propertyChecker;
     }
 
-    function swapTokenForSpecificNFTs(uint256[] calldata nftIds, uint256 maxExpectedTokenInput, address nftRecipient)
-        external
-        payable
-        nonReentrant
-        returns (uint256)
-    {
-        if (nftIds.length == 0) revert ZeroSwapAmount();
+    function swapTokenForNFTs(
+        uint256 nftNum,
+        uint256[] desiredTokenIds,
+        uint256 maxExpectedTokenInput,
+        address nftRecipient
+    ) external payable nonReentrant returns (uint256) {
+        if (nftNum == 0) revert ZeroSwapAmount();
+        uint256 nftTotalSupply = ITotalSupply(nft).totalSupply();
+
+        // 方案一，严格限制要先选择未开盒的
+        // 1.先选择未开盒的
+        uint256[] memory tokenIds = new uint256[](nftNum);
+        uint256 unRevealNFTNum = Math.min(nftTotalSupply - _saleStartTokenID, nftNum);
+        for (uint256 i = 0; i < unRevealNFTNum; i++) {
+            tokenIds[i] = _saleStartTokenID + i;
+        }
+        _saleStartTokenID += unRevealNFTNum;
+
+        // 2.选择未开盒的
+        // todo: 此过程需要优化 定制bitMap来完成优化? 外部传入tokenIds ?卖的时候存储条目
+        uint256 total = unRevealNFTNum;
+        for (uint256 i = 0; i < nftTotalSupply; i++) {
+            if (total >= nftNum) break;
+            if (_notOwnedNFTs.get(i) == false) {
+                tokenIds[total] = i;
+                total += 1;
+                // 置为已卖出
+                _notOwnedNFTs.set(i);
+            }
+        }
+
+        //方案二:支持选购,没法严格限制先购买未开盒的
+        // 1.前端通过indexer筛选出未开盒的tokenIds,(接收到的tokenIds也可能是开盒了的)
+        // 2.从 desiredTokenIds 中选出可以交易的
+        // 3.如果数量还未达到nftNum,从bitmap中选
+
+        // todo: 目前没有足够的NFT会交易失败
+        require(total == nftNum, "Not enough nfts");
 
         // 计算价格
-        uint256 price = ICurve(bondingCurve).getBuyPrice(address(this), nftIds.length);
+        uint256 price = ICurve(bondingCurve).getBuyPrice(address(this), nftNum);
 
-        // 计算交易费用
+        // 计算开盒的费用
+
+        // 开盒
+
+        // 计算tradingFee
 
         // 计算royalties
 
@@ -94,7 +133,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
         // 转nft
 
-        // 返回要支付的总金额
+        // 返还多余的金额
     }
 
     function swapNFTsForToken(uint256[] calldata nftIds, uint256 minExpectedTokenOutput, address payable tokenRecipient)

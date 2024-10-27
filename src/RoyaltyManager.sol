@@ -14,10 +14,6 @@ contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, U
 
     event PairRoyaltyStatusUpdate(address indexed pair, bool isEnabled);
 
-    constructor() {
-        _disableInitializers();
-    }
-
     function initialize(address _owner) external initializer {
         __Ownable_init(_owner);
         __UUPSUpgradeable_init();

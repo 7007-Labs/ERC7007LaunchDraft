@@ -11,5 +11,6 @@ graph TD;
     B-->E[NFTCollectionFactory]
     E-->F[ORAERC7007Impl]
     G[aiOracleManager]-->F
-    D-->H[RoyaltyManager]
+    H[RoyaltyManager]-->D
+    I[FeeManager]-->D
 ```

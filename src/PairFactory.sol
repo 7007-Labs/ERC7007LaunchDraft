@@ -17,8 +17,8 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
 
     event FeeRecipientUpdate(address indexed recipientAddress);
 
-    function initialize(address owner, address _erc7007ETHBeacon) external initializer {
-        __Ownable_init(owner);
+    function initialize(address _owner, address _erc7007ETHBeacon) external initializer {
+        __Ownable_init(_owner);
         erc7007ETHBeacon = _erc7007ETHBeacon;
     }
 
