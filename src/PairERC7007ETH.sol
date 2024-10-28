@@ -15,21 +15,20 @@ import {ITotalSupply} from "./interfaces/ITotalSupply.sol";
 import {IRoyaltyManager} from "./interfaces/IRoyaltyManager.sol";
 import {IFeeManager} from "./interfaces/IFeeManager.sol";
 
+// todo: 优化，将一些变量放到code里或者一些用到的参数放到calldata里
 contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using Address for address;
     using BitMaps for BitMaps.BitMap;
 
     IRoyaltyManager public immutable royaltyManager;
     IFeeManager public immutable feeManager;
-
     address public immutable factory;
-    PairType pairType = PairType.LAUNCH;
     address public nft;
     address public bondingCurve;
-    address private propertyChecker;
-    BitMaps.BitMap _notOwnedNFTs;
-    uint256 _saleStartTokenID; //从这个id开始卖，这个id后面的都是unReveal的
-
+    address public propertyChecker;
+    BitMaps.BitMap private _notOwnedNFTs; // todo: 实现优化
+    uint256 private _saleStartTokenID; //从这个id开始卖，这个id后面的都是unReveal的
+    uint256 private _nftTotalSupply;
     /**
      * @notice The address that swapped assets are sent to.
      * For TRADE pools, assets are always sent to the pool, so this is used to track trade fee.
@@ -65,6 +64,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         __Ownable_init(_owner);
         nft = _nft;
         propertyChecker = _propertyChecker;
+        _nftTotalSupply = ITotalSupply(nft).totalSupply();
     }
 
     function swapTokenForNFTs(
@@ -73,18 +73,14 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         uint256 maxExpectedTokenInput,
         address nftRecipient
     ) external payable nonReentrant returns (uint256) {
-        //
-        if (nftNum == 0) revert ZeroSwapAmount();
-        uint256 nftTotalSupply = ITotalSupply(nft).totalSupply();
+        if ((nftNum + desiredTokenIds.length) == 0) revert ZeroSwapAmount();
 
-        // 方案一，严格限制要先选择未开盒的
-        // 1.先选择未开盒的
-        uint256[] memory tokenIds = new uint256[](nftNum);
-        uint256 unRevealNFTNum = Math.min(nftTotalSupply - _saleStartTokenID, nftNum);
-        for (uint256 i = 0; i < unRevealNFTNum; i++) {
-            tokenIds[i] = _saleStartTokenID + i;
+        //先处理选购的，选购只支持购买已经开盒了的,选购有可能购买失败,购买失败时忽略
+        uint256[] memory availableTokenIds = new uint256[]();
+        uint256 availableTokenNum = 0;
+        for (uint256 i = 0; i < desiredTokenIds.length; i++) {
+            //todo: 将nft转给nftRecipient, 允许失败
         }
-        _saleStartTokenID += unRevealNFTNum;
 
         // todo: 选购时没有则跳过
 
@@ -115,14 +111,25 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     {
         if (nftIds.length == 0) revert ZeroSwapAmount();
         uint256 price = ICurve(bondingCurve).getBuyPrice(address(this), nftIds.length);
+
+        // 将用户的NFT(ERC20)转移进来
+        //1.方案一，使用类似于uniswap v3 的callback, callback(nftIds, ethAmount, data)
+        // 调用方在callback里将nft转移进来
+
+        //2.方案二，用户将token授权给这个合约，当前合约转用户资产转移过来
+
+        //3.方案三，用户将token授权给特定合约(例如router)，让特定合约将用户资产转到当前合约
+        // 这种需要信任当前合约
     }
 
-    /* 敏感函数 */
-    // todo: 统一的fee Manager?
-    function updateFee(uint96 _fee) public {
-        require(factory == msg.sender, "Only Factory");
-        if (_fee > MAX_TRADE_FEE) revert TradeFeeTooLarge();
-        fee = _fee;
-        emit FeeUpdate(fee);
+    // address(0) 代表eth
+    function token() pure returns (address) {}
+
+    function pairType() pure returns (PairType) {
+        return PairType.LAUNCH;
+    }
+
+    function pairVariant() pure returns (PairVariant) {
+        return PairVariant.ERC7007_ETH;
     }
 }

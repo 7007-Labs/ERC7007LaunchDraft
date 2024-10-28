@@ -6,7 +6,11 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
+import {PairType} from "./enums/PairVariant.sol";
 import {INFTCollectionFactory} from "./interfaces/INFTCollectionFactory.sol";
+import {IPairFactory} from "./intefaces/IPairFactory.sol";
+import {ICurve} from "./interfaces/ICurve.sol";
+import {IPair} from "./interfaces/IPair.sol";
 
 contract ERC7007Launch is Initializable, OwnableUpgradeable, UUPSUpgradeable, PausableUpgradeable {
     address public immutable nftCollectionFactory;
@@ -28,19 +32,24 @@ contract ERC7007Launch is Initializable, OwnableUpgradeable, UUPSUpgradeable, Pa
     function _authorizeUpgrade(address) internal override onlyOwner {}
 
     function launch(
-        string memory name,
-        string memory symbol,
-        string memory basePrompt,
+        string calldata name,
+        string calldata symbol,
+        string calldata basePrompt,
         bool nsfw,
+        ICurve bondingCurve,
         uint256 providerId,
-        bytes calldata modelParams
+        bytes calldata providerParams
     ) external payable {
         // 1.调用NFTCollectionFactory创建NFTCollection
         address collection =
             INFTCollectionFactory(nftCollectionFactory).createNFTCollection(name, symbol, basePrompt, msg.sender);
         // 2.调用PairFactory创建pair
 
-        // 3.通过pair购买一个nft
+        address pair = IPairFactory(pairFactory).createPairERC7007ETH(
+            collection, bondingCurve, PairType, address(0), address(0), ""
+        );
+
+        // IPair(pair).
     }
 
     // trader
