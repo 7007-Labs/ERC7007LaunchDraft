@@ -43,7 +43,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
         return feeConfigs[pair];
     }
 
-    function calcFees(address pair, uint256 amount) view
+    function calculateFees(address pair, uint256 amount) view
         returns (address[] memory recipients, uint256[] memory amounts)
     {
         FeeConfig storage config = configs[pair];

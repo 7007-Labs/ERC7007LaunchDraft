@@ -7,6 +7,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import {PairType} from "./enums/PairType.sol";
 import {IPair} from "./interfaces/IPair.sol";
@@ -14,6 +15,7 @@ import {ICurve} from "./interfaces/ICurve.sol";
 import {ITotalSupply} from "./interfaces/ITotalSupply.sol";
 import {IRoyaltyManager} from "./interfaces/IRoyaltyManager.sol";
 import {IFeeManager} from "./interfaces/IFeeManager.sol";
+import {IAIOracleManager} from "./interfaces/IAIOracleManager.sol";
 
 // todo: 优化，将一些变量放到code里或者一些用到的参数放到calldata里
 contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
@@ -80,20 +82,48 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         uint256 availableTokenNum = 0;
         for (uint256 i = 0; i < desiredTokenIds.length; i++) {
             //todo: 将nft转给nftRecipient, 允许失败
+            uint256 tokenId = desiredTokenIds[i];
+            // 过滤掉未开盒的
+            if (tokenId < _saleStartTokenID) {
+                continue;
+            }
+            try IERC721(nft).transferFrom(address(this), nftRecipient, tokenId) {
+                availableTokenIds[availableTokenNum] = desiredTokenIds[i];
+                i++;
+                _notOwnedNFTs.set(tokenId);
+            } catch {}
         }
 
-        // todo: 选购时没有则跳过
+        // 处理nftNum, 先购买没有开的，再购买开了的
+        uint256 unRevealedNum = Math.min(nftNum, _nftTotalSupply - _saleStartTokenID);
+        uint256[] memory unRevealedTokenIds = new uint256[](unRevealedNum);
+        uint256[] memory tokenIds = new uint256[](nftNum);
+        uint256 actualNum = unRevealedNum;
+        for (uint256 i = 0; i < unRevealedNum; i++) {
+            tokenIds[i] = _saleStartTokenID + i;
+        }
 
-        // 计算价格
-        uint256 price = ICurve(bondingCurve).getBuyPrice(address(this), nftNum);
+        for (uint256 i = 0; i < _nftTotalSupply; i++) {
+            if (actualNum >= nftNum) break;
+            if (_notOwnedNFTs.get(i)) continue;
+            tokenIds[actualNum] = i;
+            actualNum += 1;
+        }
 
         // 计算开盒的费用
+        uint256 unRevealFee = IAIOracleManager(nft).estimateFee(unRevealedNum);
 
         // 开盒
+        IAIOracleManager(nft).unReveal{value: unRevealFee}(unRevealedTokenIds);
 
-        // 计算tradingFee
+        // 计算价格
+        uint256 amount = ICurve(bondingCurve).getBuyPrice(address(this), actualNum + availableTokenNum);
+
+        // 计算Fee
+        IFeeManager(feeManager).calculateFees(address(this), amount);
 
         // 计算royalties
+        IRoyaltyManager(royaltyManager).calculateRoyaltyFee(address(this), tokenIds, amount);
 
         // 检查滑点
 

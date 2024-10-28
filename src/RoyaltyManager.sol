@@ -19,7 +19,7 @@ contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, U
         __UUPSUpgradeable_init();
     }
 
-    function calculateRoyaltyFeeAndGetRecipient(address pair, uint256[] memory tokenIds, uint256 price)
+    function calculateRoyaltyFee(address pair, uint256[] memory tokenIds, uint256 price)
         external
         view
         returns (address, uint256)

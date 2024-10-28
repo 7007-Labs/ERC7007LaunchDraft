@@ -16,6 +16,7 @@ contract ERC7007Launch is Initializable, OwnableUpgradeable, UUPSUpgradeable, Pa
     address public immutable nftCollectionFactory;
     address public immutable pairFactory;
     bool activeWaitlist;
+    uint256 public defaultNFTTotalSupply = 7007;
 
     constructor(address _nftCollectionFactory, address _pairFactory) {
         nftCollectionFactory = _nftCollectionFactory;
@@ -42,7 +43,10 @@ contract ERC7007Launch is Initializable, OwnableUpgradeable, UUPSUpgradeable, Pa
     ) external payable {
         // 1.调用NFTCollectionFactory创建NFTCollection
         address collection =
-            INFTCollectionFactory(nftCollectionFactory).createNFTCollection(name, symbol, basePrompt, msg.sender);
+            INFTCollectionFactory(nftCollectionFactory).createNFTCollection(
+                name, symbol, basePrompt, msg.sender,
+                defaultNFTTotalSupply, 
+            );
         // 2.调用PairFactory创建pair
 
         address pair = IPairFactory(pairFactory).createPairERC7007ETH(
@@ -82,23 +86,4 @@ contract ERC7007Launch is Initializable, OwnableUpgradeable, UUPSUpgradeable, Pa
         _unpause();
     }
 
-    // todo: add router
-    // 1. whitelist
-    // 2. pause
-
-    // router
-    // 1. event
-    // 2. a-b-c
-    // 3. sell nft, nft -> router
-
-    // v4
-    // pair(pool)
-    //
-    // pool => asset address => balance
-    // nft -> ft
-    // 4. nft vault, 1.pause 2. inner transfer (a -> b-> c => a -c) 3.approvel
 }
-
-// factory -> pool  only Factory()
-// owner(creator) -> pair
-// eigenlayer pool, all pool -> manager address

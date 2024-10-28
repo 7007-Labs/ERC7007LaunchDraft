@@ -14,7 +14,7 @@ interface IFeeManager {
 
     function getPairConfig(address pair) external view returns (FeeConfig memory);
 
-    function calcFees(address pair, uint256 amount)
+    function calculateFees(address pair, uint256 amount)
         external
         view
         returns (address[] memory recipients, uint256[] memory amounts);
