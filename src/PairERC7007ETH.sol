@@ -13,12 +13,15 @@ import {IPair} from "./interfaces/IPair.sol";
 import {ICurve} from "./interfaces/ICurve.sol";
 import {ITotalSupply} from "./interfaces/ITotalSupply.sol";
 import {IRoyaltyManager} from "./interfaces/IRoyaltyManager.sol";
+import {IFeeManager} from "./interfaces/IFeeManager.sol";
 
 contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using Address for address;
     using BitMaps for BitMaps.BitMap;
 
     IRoyaltyManager public immutable royaltyManager;
+    IFeeManager public immutable feeManager;
+
     address public immutable factory;
     PairType pairType = PairType.LAUNCH;
     address public nft;
@@ -26,17 +29,6 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     address private propertyChecker;
     BitMaps.BitMap _notOwnedNFTs;
     uint256 _saleStartTokenID; //从这个id开始卖，这个id后面的都是unReveal的
-
-    /**
-     * @dev 50%, must <= 1 - MAX_PROTOCOL_FEE (set in LSSVMPairFactory)
-     */
-    uint256 internal constant MAX_TRADE_FEE = 0.5e18;
-
-    /**
-     * @notice The spread between buy and sell prices, set to be a multiplier we apply to the buy price
-     * Fee is only relevant for TRADE pools. Units are in base 1e18.
-     */
-    uint96 public fee; //
 
     /**
      * @notice The address that swapped assets are sent to.
@@ -51,29 +43,27 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     event SwapNFTOutPair(uint256 amountIn, uint256[] ids);
     event SwapNFTOutPair(uint256 amountIn, uint256 numNFTs);
     event AssetRecipientChange(address indexed a);
-    event FeeUpdate(uint96 fee);
 
     // Errors
     error TradeFeeTooLarge();
     error ZeroSwapAmount();
 
-    constructor(IRoyaltyManager _royaltyManager) {
+    constructor(IRoyaltyManager _royaltyManager, IFeeManager _feeManager) {
         royaltyManager = _royaltyManager;
+        feeManager = _feeManager;
         _disableInitializers();
     }
 
     function initialize(
+        address _owner,
         address _nft,
         address _bondingCurve,
+        PairType _pairType,
         address _propertyChecker,
-        address _owner,
-        address payable _assetRecipient,
-        uint96 _fee
+        address payable _assetRecipient
     ) external initializer {
         __Ownable_init(_owner);
         nft = _nft;
-        if (_fee > MAX_TRADE_FEE) revert TradeFeeTooLarge();
-        fee = _fee;
         propertyChecker = _propertyChecker;
     }
 
@@ -83,6 +73,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         uint256 maxExpectedTokenInput,
         address nftRecipient
     ) external payable nonReentrant returns (uint256) {
+        //
         if (nftNum == 0) revert ZeroSwapAmount();
         uint256 nftTotalSupply = ITotalSupply(nft).totalSupply();
 
@@ -95,26 +86,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         }
         _saleStartTokenID += unRevealNFTNum;
 
-        // 2.选择未开盒的
-        // todo: 此过程需要优化 定制bitMap来完成优化? 外部传入tokenIds ?卖的时候存储条目
-        uint256 total = unRevealNFTNum;
-        for (uint256 i = 0; i < nftTotalSupply; i++) {
-            if (total >= nftNum) break;
-            if (_notOwnedNFTs.get(i) == false) {
-                tokenIds[total] = i;
-                total += 1;
-                // 置为已卖出
-                _notOwnedNFTs.set(i);
-            }
-        }
-
-        //方案二:支持选购,没法严格限制先购买未开盒的
-        // 1.前端通过indexer筛选出未开盒的tokenIds,(接收到的tokenIds也可能是开盒了的)
-        // 2.从 desiredTokenIds 中选出可以交易的
-        // 3.如果数量还未达到nftNum,从bitmap中选
-
-        // todo: 目前没有足够的NFT会交易失败
-        require(total == nftNum, "Not enough nfts");
+        // todo: 选购时没有则跳过
 
         // 计算价格
         uint256 price = ICurve(bondingCurve).getBuyPrice(address(this), nftNum);

@@ -33,11 +33,12 @@ contract ORAERC7007Impl is
     bool public nsfw;
 
     uint256 public totalSupply;
-    address public pair; // 交易对Address，todo: 如果reveal函数的权限控制方式改变，此变量可去除
     address public aiOracleManager; //用于管理aiOracle调用流程
 
     address private defaultNFTOwner; // nft owner
     BitMaps.BitMap private _firstOwnershipChange; //记录某个nft是否完成初次ownership变更
+
+    // 1,2,3,4,  [1-4]
 
     string public constant unRevealImageURI = "ipfs://xxx"; //todo: 默认图片链接
     string public constant aigcType = "image";
@@ -58,6 +59,7 @@ contract ORAERC7007Impl is
         require(msg.sender == owner, "Only owner");
         _;
     }
+    // contractURI
 
     // todo: 整理哪些参数放constructor，哪些放initialize,
     // 所有nft collection都一样的参数放这？
@@ -68,13 +70,12 @@ contract ORAERC7007Impl is
     function initialize(
         string memory name,
         string memory symbol,
+        string memory _basePrompt,
         address _owner,
         uint256 _totalSupply,
         address _defaultNFTOwner,
-        string memory _basePrompt,
-        uint256 _modelId,
-        address _pair,
-        bool _nsfw
+        bool _nsfw,
+        uint256 _modelId
     ) public initializer {
         __ERC721_init(name, symbol);
         __ERC721Royalty_init();
@@ -82,7 +83,6 @@ contract ORAERC7007Impl is
         owner = _owner;
         totalSupply = _totalSupply;
         modelId = _modelId;
-        pair = _pair;
         aiOracleManager = address(this); // todo: 考虑模块化
         basePrompt = _basePrompt;
         nsfw = _nsfw;
@@ -209,6 +209,7 @@ contract ORAERC7007Impl is
 
         requests[requestId] = tokenIds;
     }
+    // prompt(basePrompt + seed) <=> tokenId <=> requestId
 
     function getGasLimit(uint256 num) internal pure returns (uint64) {
         // todo: 需要细化
