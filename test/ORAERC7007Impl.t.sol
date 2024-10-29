@@ -30,10 +30,6 @@ contract ORAERC7007ImplTest is Test {
         // Deploy NFT contract
         ORAERC7007Impl nftImpl = new ORAERC7007Impl(IAIOracle(mockAIOracle));
 
-        // bytes memory initData = abi.encodeWithSelector(
-        //     ORAERC7007Impl.initialize.selector, name, symbol, basePrompt, owner, TOTAL_SUPPLY, defaultNFTOwner, false
-        // );
-
         ERC1967Proxy proxy = new ERC1967Proxy(address(nftImpl), "");
         nft = ORAERC7007Impl(address(proxy));
     }

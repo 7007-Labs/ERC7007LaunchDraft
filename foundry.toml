@@ -26,6 +26,7 @@ quote_style = "double"
 tab_width = 4
 
 [rpc_endpoints]
+anvil = "http://127.0.0.1:8545"
 mainnet = "https://rpc.ankr.com/eth"
 blast = "https://rpc.ankr.com/blast"
 optimism = "https://optimism.llamarpc.com"
