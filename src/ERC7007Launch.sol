@@ -6,9 +6,9 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
-import {PairType} from "./enums/PairVariant.sol";
+import {PairType} from "./enums/PairType.sol";
 import {INFTCollectionFactory} from "./interfaces/INFTCollectionFactory.sol";
-import {IPairFactory} from "./intefaces/IPairFactory.sol";
+import {IPairFactory} from "./interfaces/IPairFactory.sol";
 import {ICurve} from "./interfaces/ICurve.sol";
 import {IPair} from "./interfaces/IPair.sol";
 
@@ -42,21 +42,21 @@ contract ERC7007Launch is Initializable, OwnableUpgradeable, UUPSUpgradeable, Pa
         bytes calldata providerParams
     ) external payable {
         // 1.调用NFTCollectionFactory创建NFTCollection
-        address collection =
-            INFTCollectionFactory(nftCollectionFactory).createNFTCollection(
-                name, symbol, basePrompt, msg.sender,
-                defaultNFTTotalSupply, 
-            );
+        // address collection =
+        //     INFTCollectionFactory(nftCollectionFactory).createNFTCollection(
+        //         name, symbol, basePrompt, msg.sender,
+        //         defaultNFTTotalSupply,
+        //     );
         // 2.调用PairFactory创建pair
 
-        address pair = IPairFactory(pairFactory).createPairERC7007ETH(
-            collection, bondingCurve, PairType, address(0), address(0), ""
-        );
+        // address pair = IPairFactory(pairFactory).createPairERC7007ETH(
+        //     collection, bondingCurve, PairType, address(0), address(0), ""
+        // );
 
         // IPair(pair).
     }
 
-    // trader
+    // router
     function swapTokenForNFTs(
         address pairAddress,
         uint256 nftNum,
@@ -67,11 +67,11 @@ contract ERC7007Launch is Initializable, OwnableUpgradeable, UUPSUpgradeable, Pa
 
     function swapNFTsForToken(uint256[] calldata nftIds, uint256 minExpectedTokenOutput, address payable tokenRecipient)
         external
-        nonReentrant
         returns (uint256)
     {
-        if (nftIds.length == 0) revert ZeroSwapAmount();
-        uint256 price = ICurve(bondingCurve).getBuyPrice(address(this), nftIds.length);
+        // if (nftIds.length == 0) revert ZeroSwapAmount();
+        // uint256 price = ICurve(bondingCurve).getBuyPrice(address(this), nftIds.length);
+        return 0;
     }
 
     function stopWaitlist() public onlyOwner {
@@ -85,5 +85,4 @@ contract ERC7007Launch is Initializable, OwnableUpgradeable, UUPSUpgradeable, Pa
     function unpause() public onlyOwner {
         _unpause();
     }
-
 }

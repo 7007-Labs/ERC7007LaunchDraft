@@ -8,6 +8,7 @@ import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol"
 import {IBeacon} from "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
 import {PairType} from "./enums/PairType.sol";
 import {IPairFactory} from "./interfaces/IPairFactory.sol";
+import {ICurve} from "./interfaces/ICurve.sol";
 import {PairERC7007ETH} from "./PairERC7007ETH.sol";
 
 contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpgradeable {
@@ -32,7 +33,7 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
         require(bondingCurveAllowed[_bondingCurve] == true);
         if (_pairType == PairType.LAUNCH) {
             require(getLaunchPair[_nft] == address(0));
-            BeaconProxy proxy = new BeaconProxy(erc7007ETHBeacon, abi.encodeCall(PairERC7007ETH.initialize, ()));
+            // BeaconProxy proxy = new BeaconProxy(erc7007ETHBeacon, abi.encodeCall(PairERC7007ETH.initialize, ()));
         }
     }
 

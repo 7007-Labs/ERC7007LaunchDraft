@@ -38,14 +38,12 @@ contract ORAERC7007Impl is
     address private defaultNFTOwner; // nft owner
     BitMaps.BitMap private _firstOwnershipChange; //记录某个nft是否完成初次ownership变更
 
-    // 1,2,3,4,  [1-4]
-
-    string public constant unRevealImageURI = "ipfs://xxx"; //todo: 默认图片链接
+    string public constant unRevealImageUrl = "ipfs://xxx"; //todo: 默认图片链接
     string public constant aigcType = "image";
     string public constant proofType = "fraud";
     string public constant description = ""; // todo: 增加描述
     uint64 public constant addAigcDataGasLimit = 50_000; // todo: 测量
-    uint64 public constant aiOracleCallbackGasLimit = 500000; // default sd: 500k
+    uint64 public constant aiOracleCallbackGasLimit = 500_000; // default sd: 500k
 
     mapping(bytes prompt => uint256) promptToTokenId;
     mapping(uint256 tokenId => uint256) public seedOf; // tokenId => prompt
@@ -63,7 +61,9 @@ contract ORAERC7007Impl is
 
     // todo: 整理哪些参数放constructor，哪些放initialize,
     // 所有nft collection都一样的参数放这？
-    constructor(IAIOracle _aiOracle) initializer AIOracleCallbackReceiver(_aiOracle) {
+    constructor(
+        IAIOracle _aiOracle
+    ) AIOracleCallbackReceiver(_aiOracle) {
         _disableInitializers();
     }
 
@@ -93,18 +93,17 @@ contract ORAERC7007Impl is
         emit ConsecutiveTransfer(0, _totalSupply - 1, address(0), _defaultNFTOwner);
     }
 
-    function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        string memory imageURI;
+    function tokenURI(
+        uint256 tokenId
+    ) public view override returns (string memory) {
+        string memory imageUrl;
         if (aigcDataOf[tokenId].length > 0) {
-            imageURI = string.concat("ipfs://", string(aigcDataOf[tokenId]));
+            imageUrl = string.concat("ipfs://", string(aigcDataOf[tokenId]));
         } else {
-            imageURI = unRevealImageURI;
+            imageUrl = unRevealImageUrl;
         }
-        // todo: 适配metadata内容
-        return NFTMetadataRenderer.createMetadataAIGC(
-            name(),
-            description, //todo: description
-            imageURI,
+        string memory mediaData = NFTMetadataRenderer.tokenMediaData(imageUrl, "");
+        string memory aigcInfo = NFTMetadataRenderer.tokenAIGCInfo(
             basePrompt,
             aigcType,
             string(aigcDataOf[tokenId]),
@@ -112,11 +111,19 @@ contract ORAERC7007Impl is
             Strings.toHexString(address(aiOracle)),
             Strings.toString(modelId)
         );
+        return NFTMetadataRenderer.createMetadata(
+            name(),
+            description, //todo: description
+            mediaData,
+            aigcInfo
+        );
     }
 
     /* 涉及到batchMint相关优化逻辑 */
     // todo: 可以模块化
-    function _ownerOf(uint256 tokenId) internal view override returns (address) {
+    function _ownerOf(
+        uint256 tokenId
+    ) internal view override returns (address) {
         if (_firstOwnershipChange.get(tokenId) == false) {
             return defaultNFTOwner;
         }
@@ -124,10 +131,11 @@ contract ORAERC7007Impl is
     }
 
     function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
+        address from = super._update(to, tokenId, auth);
         if (_firstOwnershipChange.get(tokenId) == false) {
             _firstOwnershipChange.set(tokenId);
         }
-        return super._update(to, tokenId, auth);
+        return from;
     }
 
     /* ERC7007  */
@@ -146,12 +154,11 @@ contract ORAERC7007Impl is
     }
 
     // opML情况下，只检查数据是否finalized和aigcData是否最新的
-    function verify(bytes calldata prompt, bytes calldata aigcData, bytes calldata /* proof */ )
-        external
-        view
-        override
-        returns (bool success)
-    {
+    function verify(
+        bytes calldata prompt,
+        bytes calldata aigcData,
+        bytes calldata /* proof */
+    ) external view override returns (bool success) {
         uint256 tokenId = promptToTokenId[prompt];
         uint256 requestId = tokenIdToRequestId[tokenId];
 
@@ -168,17 +175,22 @@ contract ORAERC7007Impl is
         emit MetadataUpdate(tokenId);
     }
 
-    function getSeed(uint256 tokenId) internal view returns (uint256) {
+    function getSeed(
+        uint256 tokenId
+    ) internal view returns (uint256) {
         // todo: 采用随机的方式生成seed
         return tokenId;
     }
 
     /* aiOracleManager */
     // reveal nft metadata
-    function reveal(uint256[] memory tokenIds) external payable {
+    function reveal(
+        uint256[] memory tokenIds
+    ) external payable {
         // todo: 改成初次售出后任意用户可以调用,理论上pair会判断是否初次交易，如果是初次交易，就会调用此函数。
         // todo: 考虑初次售出后生成seed,不调用aiOracle
-        require(msg.sender == pair, "Only Pair can reveal");
+        // require(msg.sender == pair, "Only Pair can reveal");
+
         uint256 size = tokenIds.length;
         require(size > 0);
         bytes[] memory prompts = new bytes[](size);
@@ -211,22 +223,26 @@ contract ORAERC7007Impl is
     }
     // prompt(basePrompt + seed) <=> tokenId <=> requestId
 
-    function getGasLimit(uint256 num) internal pure returns (uint64) {
+    function getGasLimit(
+        uint256 num
+    ) internal pure returns (uint64) {
         // todo: 需要细化
         return uint64(10);
     }
 
     // 估算调用aiOracle需要的费用
-    function estimateFee(uint256 num) public view returns (uint256) {
+    function estimateFee(
+        uint256 num
+    ) public view returns (uint256) {
         return aiOracle.estimateFeeBatch(modelId, getGasLimit(num), num);
     }
 
     // 注意此函数在opML下可能会被多次调用
-    function aiOracleCallback(uint256 requestId, bytes calldata output, bytes calldata /* callbackData */ )
-        external
-        override
-        onlyAIOracleCallback
-    {
+    function aiOracleCallback(
+        uint256 requestId,
+        bytes calldata output,
+        bytes calldata /* callbackData */
+    ) external override onlyAIOracleCallback {
         // todo: 检查requestId
         uint256[] storage tokenIds = requests[requestId];
         require(tokenIds.length > 0);

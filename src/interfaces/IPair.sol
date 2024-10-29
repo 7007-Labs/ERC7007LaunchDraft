@@ -17,6 +17,8 @@ interface IPair {
 
     function nft() external view returns (address);
 
+    function owner() external view returns (address);
+
     function getBuyNFTQuote(uint256 assetId, uint256 numItems)
         external
         view

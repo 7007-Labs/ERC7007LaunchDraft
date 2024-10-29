@@ -6,100 +6,32 @@ import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 
 /// NFT metadata library for rendering metadata associated with editions
 library NFTMetadataRenderer {
-    function createMetadataAIGC(
+    function createMetadata(
         string memory name,
         string memory description,
-        string memory imageURI,
-        string memory prompt,
-        string memory aigcType,
-        string memory aigcData,
-        string memory proofType,
-        string memory provider,
-        string memory modelId
+        string memory mediaData,
+        string memory aigcInfo
     ) internal pure returns (string memory) {
-        string memory _tokenMediaData = tokenMediaData(imageURI, "");
-        bytes memory json = createMetadataJSON(
-            name, description, _tokenMediaData, prompt, aigcType, aigcData, proofType, provider, modelId
-        );
+        bytes memory json = createMetadataJSON(name, description, mediaData, aigcInfo);
         return encodeMetadataJSON(json);
     }
-
-    // function encodeContractURIJSON(
-    //     string memory name,
-    //     string memory description,
-    //     string memory imageURI,
-    //     string memory animationURI,
-    //     uint256 royaltyBPS,
-    //     address royaltyRecipient
-    // ) internal pure returns (string memory) {
-    //     bytes memory imageSpace = bytes("");
-    //     if (bytes(imageURI).length > 0) {
-    //         imageSpace = abi.encodePacked('", "image": "', imageURI);
-    //     }
-    //     bytes memory animationSpace = bytes("");
-    //     if (bytes(animationURI).length > 0) {
-    //         animationSpace = abi.encodePacked('", "animation_url": "', animationURI);
-    //     }
-
-    //     return string(
-    //         encodeMetadataJSON(
-    //             abi.encodePacked(
-    //                 '{"name": "',
-    //                 name,
-    //                 '", "description": "',
-    //                 description,
-    //                 // this is for opensea since they don't respect ERC2981 right now
-    //                 '", "seller_fee_basis_points": ',
-    //                 Strings.toString(royaltyBPS),
-    //                 ', "fee_recipient": "',
-    //                 Strings.toHexString(uint256(uint160(royaltyRecipient)), 20),
-    //                 imageSpace,
-    //                 animationSpace,
-    //                 '"}'
-    //             )
-    //         )
-    //     );
-    // }
 
     function createMetadataJSON(
         string memory name,
         string memory description,
         string memory mediaData,
-        string memory prompt,
-        string memory aigcType,
-        string memory aigcData,
-        string memory proofType,
-        string memory provider,
-        string memory modelId
+        string memory aigcInfo
     ) internal pure returns (bytes memory) {
         return abi.encodePacked(
-            '{"name": "',
-            name,
-            '", "',
-            'description": "',
-            description,
-            '", "',
-            mediaData,
-            '", "',
-            'prompt": "',
-            prompt,
-            'aigc_type": "',
-            aigcType,
-            'aigc_data": "',
-            aigcData,
-            'proof_type": "',
-            proofType,
-            'provider": "',
-            provider,
-            'modelId": "',
-            modelId,
-            '"}'
+            '{"name": "', name, '", "', 'description": "', description, '", "', mediaData, aigcInfo, '"}'
         );
     }
 
     /// Encodes the argument json bytes into base64-data uri format
     /// @param json Raw json to base64 and turn into a data-uri
-    function encodeMetadataJSON(bytes memory json) internal pure returns (string memory) {
+    function encodeMetadataJSON(
+        bytes memory json
+    ) internal pure returns (string memory) {
         return string(abi.encodePacked("data:application/json;base64,", Base64.encode(json)));
     }
 
@@ -121,5 +53,31 @@ library NFTMetadataRenderer {
         }
 
         return "";
+    }
+
+    function tokenAIGCInfo(
+        string memory prompt,
+        string memory aigcType,
+        string memory aigcData,
+        string memory proofType,
+        string memory provider,
+        string memory modelId
+    ) internal pure returns (string memory) {
+        return string(
+            abi.encodePacked(
+                'prompt": "',
+                prompt,
+                '", "aigc_type": "',
+                aigcType,
+                '", "aigc_data": "',
+                aigcData,
+                '", "proof_type": "',
+                proofType,
+                '", "provider": "',
+                provider,
+                '", "modelId": "',
+                modelId
+            )
+        );
     }
 }

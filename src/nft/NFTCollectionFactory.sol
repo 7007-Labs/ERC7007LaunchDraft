@@ -6,7 +6,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {INFTCollectionFactory} from "../interfaces/INFTCollectionFactory.sol";
-import {ORAERC7007Impl} from "./ORAERC7007Impl.sol";
+// import {ORAERC7007Impl} from "./ORAERC7007Impl.sol";
 
 contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     address public implementationNFTCollection;
@@ -25,8 +25,8 @@ contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUp
         string calldata prompt,
         address initialOwner,
         uint256 totalSupply,
-        address defaultMintTo;
-        bool nsfw;
+        // address defaultMintTo,
+        bool nsfw,
         address provider,
         bytes calldata providerParams
     ) external returns (address collection) {
@@ -35,26 +35,21 @@ contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUp
         uint256 modelId = abi.decode(providerParams, (uint256));
         require(oraModelAllowed[modelId]);
         ERC1967Proxy proxy = new ERC1967Proxy(implementationNFTCollection, "");
-        ORAERC7007Impl(proxy).initialize(
-            name,
-            symbol,
-            prompt,
-            initialOwner,
-            totalSupply,
-            defaultMintTo,
-            nsfw,
-            modelId
-        );
+        // ORAERC7007Impl(address(proxy)).initialize(
+        //     name, symbol, prompt, initialOwner, totalSupply, msg.sender, nsfw, modelId
+        // );
         return address(proxy);
     }
 
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    function _authorizeUpgrade(
+        address
+    ) internal override onlyOwner {}
 
-    function setProviderAllowed(address provider, bool isAllowed) onlyOwner {
+    function setProviderAllowed(address provider, bool isAllowed) external onlyOwner {
         providerAllowed[provider] = isAllowed;
     }
 
-    function setORAModelAllowed(uint256 modelId, bool isAllowed) onlyOwner {
+    function setORAModelAllowed(uint256 modelId, bool isAllowed) external onlyOwner {
         oraModelAllowed[modelId] = isAllowed;
     }
 }
