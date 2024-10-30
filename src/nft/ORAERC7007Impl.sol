@@ -220,8 +220,7 @@ contract ORAERC7007Impl is
     function getGasLimit(
         uint256 num
     ) internal pure returns (uint64) {
-        // todo: 需要细化
-        return uint64(10);
+        return uint64(17_737 + (14_766 + 29_756) * num);
     }
 
     // 估算调用aiOracle需要的费用
