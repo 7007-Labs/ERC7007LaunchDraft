@@ -39,4 +39,5 @@ Avalanche = "https://rpc.ankr.com/avalanche"
 polygon = "https://rpc.ankr.com/polygon"
 celo = "https://rpc.ankr.com/celo"
 base = "https://developer-access-mainnet.base.org"
+sepolia = "https://rpc.sepolia.org"
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
