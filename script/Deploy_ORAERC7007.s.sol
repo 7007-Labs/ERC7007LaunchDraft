@@ -20,10 +20,17 @@ contract Deploy_ORAERC7007 is Script {
 
         // 仅单独测试时使用
         ERC1967Proxy proxy = new ERC1967Proxy(address(nftImpl), "");
-        ORAERC7007Impl(address(proxy)).initialize("NFT name", "NFT", "a small dog", nftOwner, false, 50);
+        ORAERC7007Impl(address(proxy)).initialize(
+            "NFT name",
+            "NFT",
+            "cute puppy, cyberpunk style, futuristic armor, holographic displays, neon lights, sci-fi cityscape, mechanical augmentations, flying vehicles, chrome details, bioluminescent accents, high tech, volumetric lighting, (detailed intricate:1.2), (hyperrealistic:1.3), blue and purple color scheme, cinematic lighting",
+            nftOwner,
+            false,
+            50
+        );
 
         // owner调用mintAll
-        // ORAERC7007Impl(address(proxy)).mintAll(nftOwner, 7007);
+        ORAERC7007Impl(address(proxy)).mintAll(nftOwner, 7007);
 
         vm.stopBroadcast();
 

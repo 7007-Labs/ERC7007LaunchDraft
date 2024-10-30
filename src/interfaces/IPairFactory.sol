@@ -13,4 +13,8 @@ interface IPairFactory {
         address payable _assetRecipient,
         bytes calldata _data // 不同pairType可能会用到
     ) external payable returns (address);
+
+    function isValidPair(
+        address pair
+    ) external view returns (bool);
 }

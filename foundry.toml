@@ -44,3 +44,4 @@ sepolia = "https://rpc.sepolia.org"
 
 [etherscan]
 arbitrum = { key = "AXWQQQJASV3S1KS2RAVI3HAS3AJFD6856J" }
+sepolia = {key="5UBBMZZCCG4W6R1WJY346EQGFBGEV268MW", chain="sepolia", url="https://api-sepolia.etherscan.io/api"}

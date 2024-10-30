@@ -39,7 +39,7 @@ contract ORAERC7007Impl is
     address private defaultNFTOwner;
     BitMaps.BitMap private _firstOwnershipChange; //记录某个nft是否完成初次ownership变更
 
-    string public constant unRevealImageUrl = "ipfs://xxx"; //todo: 默认图片链接
+    string public constant defaultImageUrl = "ipfs://xxx"; //todo: 默认图片链接
     string public constant aigcType = "image";
     string public constant proofType = "fraud";
     string public constant description = ""; // todo: 增加描述
@@ -75,7 +75,7 @@ contract ORAERC7007Impl is
         __ERC721Royalty_init();
         __Ownable_init(_owner);
         modelId = _modelId;
-        aiOracleManager = address(this); // todo: 考虑模块化
+        aiOracleManager = address(this);
         basePrompt = _basePrompt;
         nsfw = _nsfw;
     }
@@ -97,7 +97,7 @@ contract ORAERC7007Impl is
         if (aigcDataOf[tokenId].length > 0) {
             imageUrl = string.concat("ipfs://", string(aigcDataOf[tokenId]));
         } else {
-            imageUrl = unRevealImageUrl;
+            imageUrl = defaultImageUrl;
         }
         string memory mediaData = NFTMetadataRenderer.tokenMediaData(imageUrl, "");
         string memory aigcInfo = NFTMetadataRenderer.tokenAIGCInfo(
@@ -180,8 +180,6 @@ contract ORAERC7007Impl is
         return tokenId;
     }
 
-    /* aiOracleManager */
-    // reveal nft metadata
     function reveal(
         uint256[] memory tokenIds
     ) external payable {
@@ -215,7 +213,6 @@ contract ORAERC7007Impl is
 
         requests[requestId] = tokenIds;
     }
-    // prompt(basePrompt + seed) <=> tokenId <=> requestId
 
     function getGasLimit(
         uint256 num

@@ -32,11 +32,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     BitMaps.BitMap private _notOwnedNFTs; // todo: 实现优化
     uint256 private _saleStartTokenID; //从这个id开始卖，这个id后面的都是unReveal的
     uint256 private _nftTotalSupply;
-    /**
-     * @notice The address that swapped assets are sent to.
-     * For TRADE pools, assets are always sent to the pool, so this is used to track trade fee.
-     * If set to address(0), will default to owner() for NFT and TOKEN pools.
-     */
+
     address payable internal assetRecipient;
 
     // Events
@@ -66,8 +62,11 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     ) external initializer {
         __Ownable_init(_owner);
         nft = _nft;
+        bondingCurve = _bondingCurve;
         propertyChecker = _propertyChecker;
+
         _nftTotalSupply = ITotalSupply(nft).totalSupply();
+        require(_nftTotalSupply > 0);
     }
 
     function swapTokenForNFTs(
@@ -151,11 +150,11 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         return 0;
     }
 
-    function swapNFTsForToken(uint256[] calldata nftIds, uint256 minExpectedTokenOutput, address payable tokenRecipient)
-        external
-        nonReentrant
-        returns (uint256)
-    {
+    function swapNFTsForToken(
+        uint256[] calldata nftIds,
+        uint256 minExpectedTokenOutput,
+        address payable tokenRecipient
+    ) external nonReentrant returns (uint256) {
         if (nftIds.length == 0) revert ZeroSwapAmount();
         uint256 price = ICurve(bondingCurve).getBuyPrice(address(this), nftIds.length);
 
@@ -175,19 +174,17 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         // nft Transfer
     }
 
-    function getBuyNFTQuote(uint256 assetId, uint256 numItems)
-        external
-        view
-        returns (uint256 inputAmount, uint256 royaltyAmount)
-    {
+    function getBuyNFTQuote(
+        uint256 assetId,
+        uint256 numItems
+    ) external view returns (uint256 inputAmount, uint256 royaltyAmount) {
         return (0, 0);
     }
 
-    function getSellNFTQuote(uint256 assetId, uint256 numItems)
-        external
-        view
-        returns (uint256 outputAmount, uint256 royaltyAmount)
-    {
+    function getSellNFTQuote(
+        uint256 assetId,
+        uint256 numItems
+    ) external view returns (uint256 outputAmount, uint256 royaltyAmount) {
         return (0, 0);
     }
 
@@ -195,7 +192,9 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         return address(this);
     }
 
-    function changeAssetRecipient(address payable) external {
+    function changeAssetRecipient(
+        address payable
+    ) external {
         revert();
     }
 

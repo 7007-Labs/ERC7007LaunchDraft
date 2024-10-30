@@ -14,7 +14,7 @@ import {PairERC7007ETH} from "./PairERC7007ETH.sol";
 contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     mapping(ICurve => bool) public bondingCurveAllowed;
     mapping(address nft => address) public getLaunchPair;
-
+    mapping(address pair => bool) public isValidPair;
     address public erc7007ETHBeacon;
 
     function initialize(address _owner, address _erc7007ETHBeacon) external initializer {
@@ -37,5 +37,7 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
         }
     }
 
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    function _authorizeUpgrade(
+        address
+    ) internal override onlyOwner {}
 }
