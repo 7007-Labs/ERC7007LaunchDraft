@@ -44,20 +44,19 @@ contract ORAERC7007Impl is
     string public constant proofType = "fraud";
     string public constant description = ""; // todo: 增加描述
     uint64 public constant addAigcDataGasLimit = 50_000; // todo: 测量
-    uint64 public constant aiOracleCallbackGasLimit = 500_000; // default sd: 500k
 
+    // prompt => tokenId
     mapping(bytes prompt => uint256) promptToTokenId;
-    mapping(uint256 tokenId => uint256) public seedOf; // tokenId => prompt
-    mapping(uint256 tokenId => bytes) public aigcDataOf; // tokenId 对应的aigcData
-
-    mapping(uint256 tokenId => uint256) tokenIdToRequestId; // tokenId 对应的requestId
-
-    mapping(uint256 requestId => uint256[]) requests; // requestId => tokenIds
+    // tokenId => seed
+    mapping(uint256 tokenId => uint256) public seedOf;
+    // tokenId => aigcData
+    mapping(uint256 tokenId => bytes) public aigcDataOf;
+    // tokenId => ora requestId
+    mapping(uint256 tokenId => uint256) tokenIdToRequestId;
+    // ora requestId => tokenIds
+    mapping(uint256 requestId => uint256[]) requests;
 
     // contractURI
-
-    // todo: 整理哪些参数放constructor，哪些放initialize,
-    // 所有nft collection都一样的参数放这？
     constructor(
         IAIOracle _aiOracle
     ) AIOracleCallbackReceiver(_aiOracle) {
@@ -186,10 +185,6 @@ contract ORAERC7007Impl is
     function reveal(
         uint256[] memory tokenIds
     ) external payable {
-        // todo: 改成初次售出后任意用户可以调用,理论上pair会判断是否初次交易，如果是初次交易，就会调用此函数。
-        // todo: 考虑初次售出后生成seed,不调用aiOracle
-        // require(msg.sender == pair, "Only Pair can reveal");
-
         uint256 size = tokenIds.length;
         require(size > 0);
         bytes[] memory prompts = new bytes[](size);

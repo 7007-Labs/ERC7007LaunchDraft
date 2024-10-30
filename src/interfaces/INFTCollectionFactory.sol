@@ -6,9 +6,7 @@ interface INFTCollectionFactory {
         string calldata name,
         string calldata symbol,
         string calldata prompt,
-        address initialOwner,
-        uint256 totalSupply,
-        // address defaultMintTo,
+        address _owner,
         bool nsfw,
         address provider,
         bytes calldata providerParams
