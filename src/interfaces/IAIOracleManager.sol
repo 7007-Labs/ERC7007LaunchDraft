@@ -2,7 +2,9 @@
 pragma solidity ^0.8.23;
 
 interface IAIOracleManager {
-    function estimateFee(uint256 size) external view returns (uint256);
+    function estimateFee(address nft, uint256 size) external view returns (uint256);
 
-    function unReveal(uint256[] memory tokenIds) external;
+    function reveal(address nft, uint256[] memory tokenIds) external payable;
+
+    function isTokenFinalized(address nft, uint256 tokenId) external view returns (bool);
 }

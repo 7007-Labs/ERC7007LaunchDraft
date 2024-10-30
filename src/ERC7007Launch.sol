@@ -24,13 +24,17 @@ contract ERC7007Launch is Initializable, OwnableUpgradeable, UUPSUpgradeable, Pa
         _disableInitializers();
     }
 
-    function initialize(address owner) external initializer {
+    function initialize(
+        address owner
+    ) external initializer {
         __Ownable_init(owner);
         __Pausable_init();
         activeWaitlist = true;
     }
 
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    function _authorizeUpgrade(
+        address
+    ) internal override onlyOwner {}
 
     function launch(
         string calldata name,
@@ -52,6 +56,7 @@ contract ERC7007Launch is Initializable, OwnableUpgradeable, UUPSUpgradeable, Pa
         // address pair = IPairFactory(pairFactory).createPairERC7007ETH(
         //     collection, bondingCurve, PairType, address(0), address(0), ""
         // );
+        // 3. mintAll to pair
 
         // IPair(pair).
     }
@@ -65,10 +70,11 @@ contract ERC7007Launch is Initializable, OwnableUpgradeable, UUPSUpgradeable, Pa
         address nftRecipient
     ) external payable {}
 
-    function swapNFTsForToken(uint256[] calldata nftIds, uint256 minExpectedTokenOutput, address payable tokenRecipient)
-        external
-        returns (uint256)
-    {
+    function swapNFTsForToken(
+        uint256[] calldata nftIds,
+        uint256 minExpectedTokenOutput,
+        address payable tokenRecipient
+    ) external returns (uint256) {
         // if (nftIds.length == 0) revert ZeroSwapAmount();
         // uint256 price = ICurve(bondingCurve).getBuyPrice(address(this), nftIds.length);
         return 0;

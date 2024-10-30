@@ -14,11 +14,14 @@ contract ORAERC7007ImplTest is Test {
     address public user1;
     address public user2;
     address mockAIOracle = makeAddr("mockAIOracle");
-
+    string name = "Test NFT";
+    string symbol = "TNFT";
+    string basePrompt = "Test Prompt";
+    uint256 modelId = 50;
+    bool nsfw = false;
     uint256 public constant TOTAL_SUPPLY = 7007;
 
     function setUp() public {
-        owner = makeAddr("owner");
         defaultNFTOwner = makeAddr("defaultNFTOwner");
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
@@ -32,32 +35,22 @@ contract ORAERC7007ImplTest is Test {
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(nftImpl), "");
         nft = ORAERC7007Impl(address(proxy));
+        nft.initialize(name, symbol, basePrompt, address(this), nsfw, modelId);
     }
 
     function test_Initialize() public {
-        string memory name = "Test NFT";
-        string memory symbol = "TNFT";
-        string memory basePrompt = "Test Prompt";
-        uint256 modelId = 50;
-        bool nsfw = false;
-        nft.initialize(name, symbol, basePrompt, owner, TOTAL_SUPPLY, defaultNFTOwner, nsfw, modelId);
-
         assertEq(nft.name(), name);
         assertEq(nft.symbol(), symbol);
-        assertEq(nft.owner(), owner);
-        assertEq(nft.totalSupply(), TOTAL_SUPPLY);
+        assertEq(nft.owner(), address(this));
     }
 
-    function test_Initialize_RevertWhenCalledTwice() public {
-        nft.initialize("Test NFT", "TNFT", "Test Prompt", owner, TOTAL_SUPPLY, defaultNFTOwner, false, 1);
-
+    function test_Initialize_Twice() public {
         vm.expectRevert();
-        nft.initialize("Test NFT 2", "TNFT2", "Test Prompt 2", owner, TOTAL_SUPPLY, defaultNFTOwner, false, 1);
+        nft.initialize("Test NFT 2", "TNFT2", "Test Prompt 2", address(2), true, 50);
     }
 
-    function test_DefaultOwnership() public {
-        nft.initialize("Test NFT", "TNFT", "Test Prompt", owner, TOTAL_SUPPLY, defaultNFTOwner, false, 1);
-
+    function test_mintAll() public {
+        nft.mintAll(defaultNFTOwner, TOTAL_SUPPLY);
         assertEq(nft.balanceOf(defaultNFTOwner), TOTAL_SUPPLY);
         // Check initial ownership
         for (uint256 i = 0; i < TOTAL_SUPPLY; i++) {
@@ -66,8 +59,7 @@ contract ORAERC7007ImplTest is Test {
     }
 
     function test_Transfer() public {
-        nft.initialize("Test NFT", "TNFT", "Test Prompt", owner, TOTAL_SUPPLY, defaultNFTOwner, false, 1);
-
+        nft.mintAll(defaultNFTOwner, TOTAL_SUPPLY);
         // Transfer token from defaultNFTOwner to user1
         // assertEq(nft.ownerOf(0), defaultNFTOwner);
         vm.prank(defaultNFTOwner);
@@ -90,7 +82,7 @@ contract ORAERC7007ImplTest is Test {
     }
 
     function test_Transfer_WrongOwner() public {
-        nft.initialize("Test NFT", "TNFT", "Test Prompt", owner, TOTAL_SUPPLY, defaultNFTOwner, false, 1);
+        nft.mintAll(defaultNFTOwner, TOTAL_SUPPLY);
         vm.expectRevert();
         nft.transferFrom(defaultNFTOwner, user1, 0);
     }

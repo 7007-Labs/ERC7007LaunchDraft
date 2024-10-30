@@ -24,8 +24,6 @@ contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUp
         string calldata symbol,
         string calldata prompt,
         address initialOwner,
-        uint256 totalSupply,
-        // address defaultMintTo,
         bool nsfw,
         address provider,
         bytes calldata providerParams
