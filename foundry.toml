@@ -40,3 +40,6 @@ polygon = "https://rpc.ankr.com/polygon"
 celo = "https://rpc.ankr.com/celo"
 base = "https://developer-access-mainnet.base.org"
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+[etherscan]
+arbitrum = { key = "AXWQQQJASV3S1KS2RAVI3HAS3AJFD6856J" }
