@@ -10,25 +10,42 @@ import {IAIOracle} from "../src/interfaces/IAIOracle.sol";
 contract revealNFT is Script {
     function run() public {
         // ORAERC7007Impl nft = ORAERC7007Impl(0x7374A03f3F5B062e50D22025848BEB9d3736c964);
-        ORAERC7007Impl nft = ORAERC7007Impl(0x70e69Ecb736b0dF00B34736F343147d630374415);
+        ORAERC7007Impl nft = ORAERC7007Impl(0x50A7eA568ae3d97658C1171d6b5ea27d60474Ab4);
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
         IAIOracle aiOracle = IAIOracle(0x0A0f4321214BB6C7811dD8a71cF587bdaF03f0A0);
 
-        uint256 num = 2; //一次性开图的数量
-        uint256 startTokenId = 20; //开图开始的tokenId, 每次调用后，需要手动修改此处
-        uint256 gasLimit = 17_737 + (14_766 + 29_756) * num;
+        uint256 num = 1; //一次性开图的数量
+        uint256 startTokenId = 0; //开图开始的tokenId, 每次调用后，需要手动修改此处
 
-        // uint256 fee = aiOracle.estimateFeeBatch(modelId, gasLimit, num);
-        uint256 fee = nft.estimateFee(num);
-        console2.log("gasLimit: ", gasLimit);
-        console2.log("fee: ", fee * 100 / 1e18);
-        uint256[] memory tokenIds = new uint256[](num);
+        uint256[] memory tokenIds1 = new uint256[](num);
         for (uint256 i = 0; i < num; i++) {
-            tokenIds[i] = startTokenId + i;
+            tokenIds1[i] = startTokenId + i;
         }
-        nft.reveal{value: fee}(tokenIds);
+        uint256 fee = nft.estimateFee(num);
+        console2.log("fee: ", num, fee);
+        nft.reveal{value: fee}(tokenIds1);
+
+        num = 10;
+        startTokenId = 1;
+        uint256[] memory tokenIds2 = new uint256[](num);
+        for (uint256 i = 0; i < num; i++) {
+            tokenIds2[i] = startTokenId + i;
+        }
+        fee = nft.estimateFee(num);
+        console2.log("fee: ", num, fee);
+        nft.reveal{value: fee}(tokenIds2);
+
+        num = 50;
+        startTokenId = 11;
+        uint256[] memory tokenIds3 = new uint256[](num);
+        for (uint256 i = 0; i < num; i++) {
+            tokenIds3[i] = startTokenId + i;
+        }
+        fee = nft.estimateFee(num);
+        console2.log("fee: ", num, fee);
+        nft.reveal{value: fee}(tokenIds3);
         vm.stopBroadcast();
     }
 }
