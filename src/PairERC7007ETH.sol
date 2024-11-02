@@ -16,9 +16,7 @@ import {ICurve} from "./interfaces/ICurve.sol";
 import {ITotalSupply} from "./interfaces/ITotalSupply.sol";
 import {IRoyaltyManager} from "./interfaces/IRoyaltyManager.sol";
 import {IFeeManager} from "./interfaces/IFeeManager.sol";
-import {IAIOracleManager} from "./interfaces/IAIOracleManager.sol";
 
-// todo: 优化，将一些变量放到code里或者一些用到的参数放到calldata里
 contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using Address for address;
     using BitMaps for BitMaps.BitMap;
@@ -31,7 +29,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     address public propertyChecker;
     BitMaps.BitMap private _notOwnedNFTs; // todo: 实现优化
     uint256 private _saleStartTokenID; //从这个id开始卖，这个id后面的都是unReveal的
-    uint256 private _nftTotalSupply;
+    uint256 private nftTotalSupply;
 
     address payable internal assetRecipient;
 
@@ -55,18 +53,18 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     function initialize(
         address _owner,
         address _nft,
-        address _bondingCurve,
         PairType _pairType,
+        address _bondingCurve,
         address _propertyChecker,
-        address payable _assetRecipient
+        address payable _assetRecipient,
+        uint256 _nftTotalSupply
     ) external initializer {
         __Ownable_init(_owner);
         nft = _nft;
         bondingCurve = _bondingCurve;
         propertyChecker = _propertyChecker;
-
-        _nftTotalSupply = ITotalSupply(nft).totalSupply();
         require(_nftTotalSupply > 0);
+        nftTotalSupply = _nftTotalSupply;
     }
 
     function swapTokenForNFTs(

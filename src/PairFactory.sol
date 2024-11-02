@@ -28,11 +28,13 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
         PairType _pairType,
         address _propertyChecker,
         address payable _assetRecipient,
-        bytes calldata _data // 不同pairType可能会用到
+        bytes calldata data
     ) external payable returns (address pair) {
         require(bondingCurveAllowed[_bondingCurve] == true);
         if (_pairType == PairType.LAUNCH) {
             require(getLaunchPair[_nft] == address(0));
+            uint256 _nftTotalSupply = abi.decode(data, (uint256));
+
             // BeaconProxy proxy = new BeaconProxy(erc7007ETHBeacon, abi.encodeCall(PairERC7007ETH.initialize, ()));
         }
     }

@@ -6,17 +6,17 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {INFTCollectionFactory} from "../interfaces/INFTCollectionFactory.sol";
-// import {ORAERC7007Impl} from "./ORAERC7007Impl.sol";
+import {ORAERC7007Impl} from "./ORAERC7007Impl.sol";
 
 contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUpgradeable, UUPSUpgradeable {
-    address public implementationNFTCollection;
+    address public nftCollectionImpl;
 
     mapping(address => bool) public providerAllowed;
     mapping(uint256 => bool) public oraModelAllowed;
 
     function initialize(address owner, address _implementation) external initializer {
         __Ownable_init(owner);
-        implementationNFTCollection = _implementation;
+        nftCollectionImpl = _implementation;
     }
 
     function createNFTCollection(
@@ -28,14 +28,11 @@ contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUp
         address provider,
         bytes calldata providerParams
     ) external returns (address collection) {
-        // 暂时只支持ORA的ai provider，后续有不能兼容的，需要更新合约来支持
         require(providerAllowed[provider]);
         uint256 modelId = abi.decode(providerParams, (uint256));
         require(oraModelAllowed[modelId]);
-        ERC1967Proxy proxy = new ERC1967Proxy(implementationNFTCollection, "");
-        // ORAERC7007Impl(address(proxy)).initialize(
-        //     name, symbol, prompt, initialOwner, totalSupply, msg.sender, nsfw, modelId
-        // );
+        ERC1967Proxy proxy = new ERC1967Proxy(nftCollectionImpl, "");
+        ORAERC7007Impl(address(proxy)).initialize(name, symbol, prompt, _owner, nsfw, modelId);
         return address(proxy);
     }
 
