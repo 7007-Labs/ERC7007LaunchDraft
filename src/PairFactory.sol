@@ -19,7 +19,6 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
     mapping(address router => bool) public isRouterAllowed;
     mapping(address => bool) public allowlist;
 
-    address public feeManager;
     address public erc7007ETHBeacon;
 
     event RouterStatusUpdate(address indexed router, bool isAllowed);
@@ -46,15 +45,19 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
     ) external payable onlyAllowlist returns (address pair) {
         require(bondingCurveAllowed[_bondingCurve] == true);
         if (_pairType == PairType.LAUNCH) {
-            bytes32 salt = keccak256(abi.encodePacked(_pairType, _nft));
-            bytes memory initCode = abi.encodePacked(type(BeaconProxy).creationCode, abi.encode(erc7007ETHBeacon));
-            pair = Create2.deploy(0, salt, initCode);
+            pair = _deployPair(_pairType, _nft);
             uint256 _nftTotalSupply = abi.decode(extraParams, (uint256));
-
-            PairERC7007ETH(pair).initialize(_owner, _nft, _pairType, _bondingCurve, _propertyChecker, _nftTotalSupply);
+            PairERC7007ETH(pair).initialize(_owner, _nft, _bondingCurve, _propertyChecker, _nftTotalSupply);
+            isValidPair[pair] = true;
         } else {
             revert WrongPairType();
         }
+    }
+
+    function _deployPair(PairType _pairType, address _nft) internal returns (address) {
+        bytes32 salt = keccak256(abi.encodePacked(_pairType, _nft));
+        bytes memory initCode = abi.encodePacked(type(BeaconProxy).creationCode, abi.encode(erc7007ETHBeacon));
+        return Create2.deploy(0, salt, initCode);
     }
 
     function addToAllowlist(

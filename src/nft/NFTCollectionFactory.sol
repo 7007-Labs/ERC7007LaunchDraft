@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -31,9 +32,19 @@ contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUp
         require(providerAllowed[provider]);
         uint256 modelId = abi.decode(providerParams, (uint256));
         require(oraModelAllowed[modelId]);
-        ERC1967Proxy proxy = new ERC1967Proxy(nftCollectionImpl, "");
-        ORAERC7007Impl(address(proxy)).initialize(name, symbol, prompt, _owner, nsfw, modelId);
-        return address(proxy);
+
+        collection = _deployNFTCollection(provider, modelId, prompt);
+        ORAERC7007Impl(collection).initialize(name, symbol, prompt, _owner, nsfw, modelId);
+    }
+
+    function _deployNFTCollection(
+        address provider,
+        uint256 modelId,
+        string calldata prompt
+    ) internal returns (address) {
+        bytes32 salt = keccak256(abi.encodePacked(provider, modelId, prompt));
+        bytes memory initCode = abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(nftCollectionImpl));
+        return Create2.deploy(0, salt, initCode);
     }
 
     function _authorizeUpgrade(

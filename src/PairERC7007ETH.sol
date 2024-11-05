@@ -68,7 +68,6 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     function initialize(
         address _owner,
         address _nft,
-        PairType _pairType,
         ICurve _bondingCurve,
         address _propertyChecker,
         uint256 _nftTotalSupply
@@ -192,7 +191,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         bool allowAlternative,
         uint256 maxExpectedTokenInput,
         address nftRecipient,
-        bool isRouter,
+        bool, /* isRouter */
         address /* routerCaller */
     ) external payable nonReentrant returns (uint256, uint256) {
         uint256 targetNFTNum = targetTokenIds.length;
@@ -325,15 +324,14 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         }
         uint256 price = ICurve(bondingCurve).getBuyPrice(address(this), numItems);
 
-        (address payable[] memory feeRecipients, uint256[] memory feeAmounts) =
-            IFeeManager(feeManager).calculateFees(address(this), price);
+        (, uint256[] memory feeAmounts) = IFeeManager(feeManager).calculateFees(address(this), price);
         uint256 totalFee = 0;
         for (uint256 i = 0; i < feeAmounts.length; i++) {
             totalFee += feeAmounts[i];
         }
 
         // 计算royalty
-        (address payable[] memory royaltyRecipients, uint256[] memory royaltyAmounts) =
+        (, uint256[] memory royaltyAmounts) =
             IRoyaltyManager(royaltyManager).calculateRoyaltyFee(address(this), assetId, price);
 
         for (uint256 i = 0; i < royaltyAmounts.length; i++) {
@@ -345,7 +343,24 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     function getSellNFTQuote(
         uint256 assetId,
         uint256 numItems
-    ) external view returns (uint256 outputAmount, uint256 royaltyAmount) {}
+    ) external view returns (uint256 outputAmount, uint256 royaltyAmount) {
+        uint256 price = ICurve(bondingCurve).getSellPrice(address(this), numItems);
+        // 计算Fee
+        (, uint256[] memory feeAmounts) = IFeeManager(feeManager).calculateFees(address(this), price);
+
+        uint256 totalFee = 0;
+        for (uint256 i = 0; i < feeAmounts.length; i++) {
+            totalFee += feeAmounts[i];
+        }
+        outputAmount = price - totalFee;
+        (, uint256[] memory royaltyAmounts) =
+            IRoyaltyManager(royaltyManager).calculateRoyaltyFee(address(this), assetId, outputAmount);
+
+        for (uint256 i = 0; i < royaltyAmounts.length; i++) {
+            royaltyAmount += royaltyAmounts[i];
+        }
+        outputAmount -= royaltyAmount;
+    }
 
     function owner() public view override(IPair, OwnableUpgradeable) returns (address) {
         return OwnableUpgradeable.owner();
