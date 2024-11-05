@@ -14,29 +14,36 @@ contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, U
 
     event PairRoyaltyStatusUpdate(address indexed pair, bool isEnabled);
 
-    function initialize(address _owner) external initializer {
+    function initialize(
+        address _owner
+    ) external initializer {
         __Ownable_init(_owner);
         __UUPSUpgradeable_init();
     }
 
-    function calculateRoyaltyFee(address pair, uint256[] memory tokenIds, uint256 price)
-        external
-        view
-        returns (address, uint256)
-    {
+    function calculateRoyaltyFee(
+        address pair,
+        uint256 tokenId,
+        uint256 price
+    ) external view returns (address payable[] memory, uint256[] memory) {
         if (!pairRoyaltyEnabled[pair]) {
-            return (address(0), 0);
+            return (new address payable[](0), new uint256[](0));
         }
 
         address nft = IPair(pair).nft();
-        return royaltyInfo(nft, tokenIds[0], price);
+        (address recipient, uint256 amount) = royaltyInfo(nft, tokenId, price);
+        address payable[] memory recipients = new address payable[](1);
+        recipients[0] = payable(recipient);
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amount;
+        return (recipients, amounts);
     }
 
-    function royaltyInfo(address nft, uint256 tokenId, uint256 price)
-        public
-        view
-        returns (address recipient, uint256 amount)
-    {
+    function royaltyInfo(
+        address nft,
+        uint256 tokenId,
+        uint256 price
+    ) public view returns (address recipient, uint256 amount) {
         if (IERC2981(nft).supportsInterface(type(IERC2981).interfaceId)) {
             try IERC2981(nft).royaltyInfo(tokenId, price) returns (address newRecipient, uint256 newAmount) {
                 recipient = newRecipient;
@@ -45,7 +52,9 @@ contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, U
         }
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyOwner {}
 
     function setPairRoyaltyStatus(address pair, bool isEnabled) external onlyOwner {
         pairRoyaltyEnabled[pair] = isEnabled;

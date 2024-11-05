@@ -12,10 +12,14 @@ interface IFeeManager {
         uint16 protocolBPS;
     }
 
-    function getPairConfig(address pair) external view returns (FeeConfig memory);
+    function register(address recipient, uint16 feeBPS, uint16 protocolBPS) external;
 
-    function calculateFees(address pair, uint256 amount)
-        external
-        view
-        returns (address[] memory recipients, uint256[] memory amounts);
+    function getPairConfig(
+        address pair
+    ) external view returns (FeeConfig memory);
+
+    function calculateFees(
+        address pair,
+        uint256 amount
+    ) external view returns (address payable[] memory recipients, uint256[] memory amounts);
 }

@@ -15,10 +15,23 @@ contract Deploy is Script {
 
         // nftFactory nftFactory.initialize
 
-        // PairErc7007ETH (royaltyManager, feeManager)
-
         // pairFactoryImpl
 
         // pairFactory
+
+        // feeManagerImpl
+
+        // feeManager feeManager.intialize
+
+        // transferManager (pairFactory)
+
+        // PairErc7007ETH (royaltyManager, feeManager, transferManager)
+
+        // pairFactory.initialize (pairerc7007eth, transferManager)
+
+        // launch
+
+        // pairFactory addToAllowlist(launch)
+        // pairFactory setRouterAllowed(launch)
     }
 }

@@ -8,11 +8,12 @@ library ORAUtils {
         return abi.encodePacked('{"prompt":"', prompt, '","seed":', Strings.toString(seed), "}");
     }
 
-    function decodeCIDs(bytes calldata data) public pure returns (bytes[] memory) {
+    function decodeCIDs(
+        bytes calldata data
+    ) public pure returns (bytes[] memory) {
         require(data.length >= 4, "Data too short");
         uint32 count = uint32(bytes4(data[:4]));
         bytes[] memory cids = new bytes[](count);
-
         uint256 offset = 4;
         for (uint32 i = 0; i < count; i++) {
             require(data.length >= offset + 4, "Invalid data length");
@@ -27,6 +28,7 @@ library ORAUtils {
             assembly {
                 calldatacopy(add(cidBytes, 32), add(data.offset, offset), cidLength)
             }
+            cids[i] = cidBytes;
             offset += cidLength;
         }
         return cids;

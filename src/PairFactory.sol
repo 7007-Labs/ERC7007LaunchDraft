@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -8,35 +9,69 @@ import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol"
 import {IBeacon} from "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
 import {PairType} from "./enums/PairType.sol";
 import {IPairFactory} from "./interfaces/IPairFactory.sol";
+import {IPair} from "./interfaces/IPair.sol";
 import {ICurve} from "./interfaces/ICurve.sol";
 import {PairERC7007ETH} from "./PairERC7007ETH.sol";
 
 contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     mapping(ICurve => bool) public bondingCurveAllowed;
-    mapping(address nft => address) public getLaunchPair;
     mapping(address pair => bool) public isValidPair;
+    mapping(address router => bool) public isRouterAllowed;
+    mapping(address => bool) public allowlist;
+
+    address public feeManager;
     address public erc7007ETHBeacon;
+
+    event RouterStatusUpdate(address indexed router, bool isAllowed);
+
+    error WrongPairType();
 
     function initialize(address _owner, address _erc7007ETHBeacon) external initializer {
         __Ownable_init(_owner);
         erc7007ETHBeacon = _erc7007ETHBeacon;
     }
 
+    modifier onlyAllowlist() {
+        require(allowlist[msg.sender], "Only allowlist");
+        _;
+    }
+
     function createPairERC7007ETH(
+        address _owner,
         address _nft,
         ICurve _bondingCurve,
         PairType _pairType,
         address _propertyChecker,
-        address payable _assetRecipient,
-        bytes calldata data
-    ) external payable returns (address pair) {
+        bytes calldata extraParams
+    ) external payable onlyAllowlist returns (address pair) {
         require(bondingCurveAllowed[_bondingCurve] == true);
         if (_pairType == PairType.LAUNCH) {
-            require(getLaunchPair[_nft] == address(0));
-            uint256 _nftTotalSupply = abi.decode(data, (uint256));
+            bytes32 salt = keccak256(abi.encodePacked(_pairType, _nft));
+            bytes memory initCode = abi.encodePacked(type(BeaconProxy).creationCode, abi.encode(erc7007ETHBeacon));
+            pair = Create2.deploy(0, salt, initCode);
+            uint256 _nftTotalSupply = abi.decode(extraParams, (uint256));
 
-            // BeaconProxy proxy = new BeaconProxy(erc7007ETHBeacon, abi.encodeCall(PairERC7007ETH.initialize, ()));
+            PairERC7007ETH(pair).initialize(_owner, _nft, _pairType, _bondingCurve, _propertyChecker, _nftTotalSupply);
+        } else {
+            revert WrongPairType();
         }
+    }
+
+    function addToAllowlist(
+        address _address
+    ) external onlyOwner {
+        allowlist[_address] = true;
+    }
+
+    function removeFromAllowlist(
+        address _address
+    ) external onlyOwner {
+        allowlist[_address] = false;
+    }
+
+    function setRouterAllowed(address router, bool isAllowed) external onlyOwner {
+        isRouterAllowed[router] = isAllowed;
+        emit RouterStatusUpdate(router, isAllowed);
     }
 
     function _authorizeUpgrade(

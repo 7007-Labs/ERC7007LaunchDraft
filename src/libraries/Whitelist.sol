@@ -6,11 +6,13 @@ import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 abstract contract Whitelist {
     bytes32 public whitelistMerkleRoot = 0x0000000000000000000000000000000000000000000000000000000000000000;
 
-    function setWhitelistMerkleRoot(bytes32 root) external {
+    function _setWhitelistMerkleRoot(
+        bytes32 root
+    ) internal {
         whitelistMerkleRoot = root;
     }
 
-    function verifyWhitelistAddress(address addr, bytes32[] calldata proof) private view returns (bool) {
+    function verifyWhitelistAddress(address addr, bytes32[] calldata proof) internal view returns (bool) {
         bytes32 leaf = keccak256(abi.encodePacked(addr));
         return MerkleProof.verify(proof, whitelistMerkleRoot, leaf);
     }

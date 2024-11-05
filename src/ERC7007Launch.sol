@@ -13,13 +13,15 @@ import {IPairFactory} from "./interfaces/IPairFactory.sol";
 import {ICurve} from "./interfaces/ICurve.sol";
 import {IPair} from "./interfaces/IPair.sol";
 import {IORAERC7007} from "./interfaces/IORAERC7007.sol";
+import {Whitelist} from "./libraries/Whitelist.sol";
 
-contract ERC7007Launch is Initializable, OwnableUpgradeable, UUPSUpgradeable, PausableUpgradeable {
+contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgradeable, PausableUpgradeable {
     uint256 public constant defaultNFTTotalSupply = 7007;
     address public immutable token7007;
     address public immutable nftCollectionFactory;
     address public immutable pairFactory;
-    bool activeWaitlist;
+
+    bool public isEnableWaitlist;
 
     constructor(address _nftCollectionFactory, address _pairFactory, address _token7007) {
         nftCollectionFactory = _nftCollectionFactory;
@@ -33,50 +35,81 @@ contract ERC7007Launch is Initializable, OwnableUpgradeable, UUPSUpgradeable, Pa
     ) external initializer {
         __Ownable_init(owner);
         __Pausable_init();
-        activeWaitlist = true;
+        isEnableWaitlist = true;
+    }
+
+    function _checkWaitlist(
+        bytes32[] calldata proof
+    ) internal view {
+        if (isEnableWaitlist) {
+            require(verifyWhitelistAddress(msg.sender, proof), "Address not whitelisted");
+        }
+    }
+
+    struct LaunchParams {
+        string name;
+        string symbol;
+        string basePrompt;
+        bool nsfw;
+        address provider;
+        bytes providerParams;
+        ICurve bondingCurve;
+        uint256 initialBuyNum;
+        bytes32[] whitelistProof;
     }
 
     function launch(
-        string calldata name,
-        string calldata symbol,
-        string calldata basePrompt,
-        bool nsfw,
-        address provider,
-        bytes calldata providerParams,
-        ICurve bondingCurve,
-        uint256 initialBuyNum
+        LaunchParams calldata params
     ) external payable whenNotPaused {
         // check initialBuyNum
-        require(initialBuyNum > 0);
-
+        require(params.initialBuyNum > 0);
+        _checkWaitlist(params.whitelistProof);
         address collection = INFTCollectionFactory(nftCollectionFactory).createNFTCollection(
-            name, symbol, basePrompt, msg.sender, nsfw, provider, providerParams
+            params.name,
+            params.symbol,
+            params.basePrompt,
+            msg.sender,
+            params.nsfw,
+            params.provider,
+            params.providerParams
         );
 
         bytes memory data = abi.encodePacked(defaultNFTTotalSupply);
         address pair = IPairFactory(pairFactory).createPairERC7007ETH(
-            collection, bondingCurve, PairType.LAUNCH, address(0), payable(address(0)), data
+            msg.sender, collection, params.bondingCurve, PairType.LAUNCH, address(0), data
         );
 
         IORAERC7007(collection).activate(defaultNFTTotalSupply, pair, pair);
 
         // burn token7007
-        uint256 burnTokenAmount = 0; // todo: 计算要burn的数目，需要操作时，用户需要授权给当前合约
-        IERC20(token7007).transferFrom(msg.sender, address(0), burnTokenAmount);
+        // uint256 burnTokenAmount = 0; // todo: 计算要burn的数目，需要操作时，用户需要授权给当前合约
+        // IERC20(token7007).transferFrom(msg.sender, address(0), burnTokenAmount);
 
-        IPair(pair).swapTokenForNFTs(initialBuyNum, new uint256[](0), false, msg.value, msg.sender, true, msg.sender);
+        IPair(pair).swapTokenForNFTs(1, msg.value, msg.sender, true, msg.sender);
     }
 
     function swapTokenForNFTs(
         address pair,
         uint256 nftNum,
-        uint256[] calldata desiredTokenIds,
-        bool allowBuyOtherNFTs,
         uint256 maxExpectedTokenInput,
-        address nftRecipient
-    ) external payable whenNotPaused {
-        IPair(pair).swapTokenForNFTs(
-            nftNum, desiredTokenIds, allowBuyOtherNFTs, maxExpectedTokenInput, nftRecipient, true, msg.sender
+        address nftRecipient,
+        bytes32[] calldata whitelistProof
+    ) external payable whenNotPaused returns (uint256, uint256) {
+        _checkWaitlist(whitelistProof);
+        return IPair(pair).swapTokenForNFTs(nftNum, maxExpectedTokenInput, nftRecipient, true, msg.sender);
+    }
+
+    function swapTokenForSpecificNFTs(
+        address pair,
+        uint256[] calldata tokenIds,
+        bool allowAlternative,
+        uint256 maxExpectedTokenInput,
+        address nftRecipient,
+        bytes32[] calldata whitelistProof
+    ) external payable returns (uint256, uint256) {
+        _checkWaitlist(whitelistProof);
+        return IPair(pair).swapTokenForSpecificNFTs(
+            tokenIds, allowAlternative, maxExpectedTokenInput, nftRecipient, true, msg.sender
         );
     }
 
@@ -84,13 +117,25 @@ contract ERC7007Launch is Initializable, OwnableUpgradeable, UUPSUpgradeable, Pa
         address pair,
         uint256[] calldata tokenIds,
         uint256 minExpectedTokenOutput,
-        address payable tokenRecipient
-    ) external whenNotPaused {
-        IPair(pair).swapNFTsForToken(tokenIds, minExpectedTokenOutput, tokenRecipient, true, msg.sender);
+        address payable tokenRecipient,
+        bytes32[] calldata whitelistProof
+    ) external whenNotPaused returns (uint256) {
+        _checkWaitlist(whitelistProof);
+        return IPair(pair).swapNFTsForToken(tokenIds, minExpectedTokenOutput, tokenRecipient, true, msg.sender);
     }
 
-    function stopWaitlist() public onlyOwner {
-        activeWaitlist = false;
+    function setWhitelistMerkleRoot(
+        bytes32 root
+    ) external onlyOwner {
+        _setWhitelistMerkleRoot(root);
+    }
+
+    function disableWaitlist() public onlyOwner {
+        isEnableWaitlist = false;
+    }
+
+    function enableWaitlist() public onlyOwner {
+        isEnableWaitlist = true;
     }
 
     function _authorizeUpgrade(

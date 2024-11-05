@@ -5,12 +5,6 @@ import {PairType} from "../enums/PairType.sol";
 import {PairVariant} from "../enums/PairVariant.sol";
 
 interface IPair {
-    function getAssetRecipient() external returns (address);
-
-    function changeAssetRecipient(
-        address payable newRecipient
-    ) external;
-
     function pairType() external view returns (PairType);
 
     function pairVariant() external view returns (PairVariant);
@@ -23,8 +17,9 @@ interface IPair {
 
     function getBuyNFTQuote(
         uint256 assetId,
-        uint256 numItems
-    ) external view returns (uint256 inputAmount, uint256 aiAmount, uint256 royaltyAmount);
+        uint256 numItems,
+        bool isPick
+    ) external view returns (uint256 inputAmount, uint256 aigcAmount, uint256 royaltyAmount);
 
     function getSellNFTQuote(
         uint256 assetId,
@@ -33,8 +28,15 @@ interface IPair {
 
     function swapTokenForNFTs(
         uint256 nftNum,
-        uint256[] calldata desiredTokenIds,
-        bool allowBuyOtherNFTs,
+        uint256 maxExpectedTokenInput,
+        address nftRecipient,
+        bool isRouter,
+        address routerCaller
+    ) external payable returns (uint256 nftNumOutput, uint256 tokenInput);
+
+    function swapTokenForSpecificNFTs(
+        uint256[] calldata tokenIds,
+        bool allowAlternative,
         uint256 maxExpectedTokenInput,
         address nftRecipient,
         bool isRouter,
