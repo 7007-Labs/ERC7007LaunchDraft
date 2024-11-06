@@ -52,16 +52,11 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     error NotRouter();
     error OutputTooSmall();
 
-    constructor(
-        IPairFactory _factory,
-        IRoyaltyManager _royaltyManager,
-        IFeeManager _feeManager,
-        ITransferManager _transferManager
-    ) {
-        factory = _factory;
-        royaltyManager = _royaltyManager;
-        feeManager = _feeManager;
-        transferManager = _transferManager;
+    constructor(address _factory, address _royaltyManager, address _feeManager, address _transferManager) {
+        factory = IPairFactory(_factory);
+        royaltyManager = IRoyaltyManager(_royaltyManager);
+        feeManager = IFeeManager(_feeManager);
+        transferManager = ITransferManager(_transferManager);
         _disableInitializers();
     }
 
@@ -308,6 +303,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     ) internal {
         address _from = isRouter ? routerCaller : msg.sender;
         for (uint256 i = 0; i < tokenIds.length; i++) {
+            saleOutNFTs.setTo(tokenIds[i], false);
             transferManager.transferERC721(_nft, _from, address(this), tokenIds);
         }
     }
@@ -362,8 +358,16 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         outputAmount -= royaltyAmount;
     }
 
+    function syncNFTStatus(
+        uint256 tokenId
+    ) external nonReentrant {
+        require(tokenId < nftTotalSupply);
+        bool isOwner = IERC721(nft).ownerOf(tokenId) == address(this);
+        saleOutNFTs.setTo(tokenId, !isOwner);
+    }
+
     function owner() public view override(IPair, OwnableUpgradeable) returns (address) {
-        return OwnableUpgradeable.owner();
+        return super.owner();
     }
 
     function token() external pure returns (address) {
