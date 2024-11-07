@@ -14,7 +14,7 @@ import {ICurve} from "./interfaces/ICurve.sol";
 import {PairERC7007ETH} from "./PairERC7007ETH.sol";
 
 contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpgradeable {
-    mapping(ICurve => bool) public bondingCurveAllowed;
+    mapping(address => bool) public bondingCurveAllowed;
     mapping(address pair => bool) public isValidPair;
     mapping(address router => bool) public isRouterAllowed;
     mapping(address => bool) public allowlist;
@@ -22,6 +22,7 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
     address public erc7007ETHBeacon;
 
     event RouterStatusUpdate(address indexed router, bool isAllowed);
+    event BondingCurveStatusUpdate(address indexed bondingCurve, bool isAllowed);
 
     error WrongPairType();
 
@@ -38,7 +39,7 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
     function createPairERC7007ETH(
         address _owner,
         address _nft,
-        ICurve _bondingCurve,
+        address _bondingCurve,
         PairType _pairType,
         address _propertyChecker,
         bytes calldata extraParams
@@ -47,7 +48,7 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
         if (_pairType == PairType.LAUNCH) {
             pair = _deployPair(_pairType, _nft);
             uint256 _nftTotalSupply = abi.decode(extraParams, (uint256));
-            PairERC7007ETH(pair).initialize(_owner, _nft, _bondingCurve, _propertyChecker, _nftTotalSupply);
+            PairERC7007ETH(pair).initialize(_owner, _nft, ICurve(_bondingCurve), _propertyChecker, _nftTotalSupply);
             isValidPair[pair] = true;
         } else {
             revert WrongPairType();
@@ -75,6 +76,11 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
     function setRouterAllowed(address router, bool isAllowed) external onlyOwner {
         isRouterAllowed[router] = isAllowed;
         emit RouterStatusUpdate(router, isAllowed);
+    }
+
+    function setBondingCurveAllowed(address bondingCurve, bool isAllowed) external onlyOwner {
+        bondingCurveAllowed[bondingCurve] = isAllowed;
+        emit BondingCurveStatusUpdate(bondingCurve, isAllowed);
     }
 
     function _authorizeUpgrade(

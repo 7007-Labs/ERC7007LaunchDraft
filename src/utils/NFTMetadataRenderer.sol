@@ -80,4 +80,12 @@ library NFTMetadataRenderer {
             )
         );
     }
+
+    function encodeContractURIJSON(
+        string memory name,
+        string memory description
+    ) internal pure returns (string memory) {
+        return
+            string(encodeMetadataJSON(abi.encodePacked('{"name": "', name, '", "description": "', description, '"}')));
+    }
 }

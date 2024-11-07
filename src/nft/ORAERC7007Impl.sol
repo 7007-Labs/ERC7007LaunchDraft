@@ -13,6 +13,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {AIOracleCallbackReceiver} from "../libraries/AIOracleCallbackReceiver.sol";
 import {IAIOracle} from "../interfaces/IAIOracle.sol";
 import {IORAERC7007} from "../interfaces/IORAERC7007.sol";
+import {IERC7572} from "../interfaces/IERC7572.sol";
 import {NFTMetadataRenderer} from "../utils/NFTMetadataRenderer.sol";
 import {ORAUtils} from "../utils/ORAUtils.sol";
 
@@ -20,6 +21,7 @@ contract ORAERC7007Impl is
     ERC721RoyaltyUpgradeable,
     IERC4906,
     IERC2309,
+    IERC7572,
     IORAERC7007,
     OwnableUpgradeable,
     AIOracleCallbackReceiver
@@ -114,6 +116,10 @@ contract ORAERC7007Impl is
         );
     }
 
+    function contractURI() external view returns (string memory) {
+        return NFTMetadataRenderer.encodeContractURIJSON(name(), description);
+    }
+
     function _ownerOf(
         uint256 tokenId
     ) internal view override returns (address) {
@@ -171,11 +177,15 @@ contract ORAERC7007Impl is
         // todo: 采用随机的方式生成seed
         return tokenId;
     }
+    // pre sale ()
+    // NFT price Strategy
+    // public mint (after pre sale)
 
     function reveal(
         uint256[] memory tokenIds
     ) external payable {
         require(msg.sender == operator, "Only operator");
+
         uint256 size = tokenIds.length;
         require(size > 0);
         bytes[] memory prompts = new bytes[](size);

@@ -16,7 +16,7 @@ import {IORAERC7007} from "./interfaces/IORAERC7007.sol";
 import {Whitelist} from "./libraries/Whitelist.sol";
 
 contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgradeable, PausableUpgradeable {
-    uint256 public constant defaultNFTTotalSupply = 7007;
+    uint256 public constant maxNFTTotalSupply = 7007;
     address public immutable token7007;
     address public immutable nftCollectionFactory;
     address public immutable pairFactory;
@@ -53,8 +53,12 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         bool nsfw;
         address provider;
         bytes providerParams;
-        ICurve bondingCurve;
+        address bondingCurve;
+        uint256 totalSupply;
         uint256 initialBuyNum;
+        uint256 initialPrice;
+        uint64 preSaleStart;
+        uint64 preSaleEnd;
         bytes32[] whitelistProof;
     }
 
@@ -63,6 +67,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     ) external payable whenNotPaused {
         // check initialBuyNum
         require(params.initialBuyNum > 0);
+        require(params.totalSupply <= maxNFTTotalSupply);
         _checkWaitlist(params.whitelistProof);
         address collection = INFTCollectionFactory(nftCollectionFactory).createNFTCollection(
             params.name,
@@ -74,12 +79,12 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
             params.providerParams
         );
 
-        bytes memory data = abi.encodePacked(defaultNFTTotalSupply);
+        bytes memory data = abi.encodePacked(params.totalSupply);
         address pair = IPairFactory(pairFactory).createPairERC7007ETH(
             msg.sender, collection, params.bondingCurve, PairType.LAUNCH, address(0), data
         );
 
-        IORAERC7007(collection).activate(defaultNFTTotalSupply, pair, pair);
+        IORAERC7007(collection).activate(params.totalSupply, pair, pair);
 
         // burn token7007
         // uint256 burnTokenAmount = 0; // todo: 计算要burn的数目，需要操作时，用户需要授权给当前合约
@@ -102,14 +107,15 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     function swapTokenForSpecificNFTs(
         address pair,
         uint256[] calldata tokenIds,
-        bool allowAlternative,
+        uint256 maxNFTNum,
+        uint256 minNFTNum,
         uint256 maxExpectedTokenInput,
         address nftRecipient,
         bytes32[] calldata whitelistProof
     ) external payable returns (uint256, uint256) {
         _checkWaitlist(whitelistProof);
         return IPair(pair).swapTokenForSpecificNFTs(
-            tokenIds, allowAlternative, maxExpectedTokenInput, nftRecipient, true, msg.sender
+            tokenIds, maxNFTNum, minNFTNum, maxExpectedTokenInput, nftRecipient, true, msg.sender
         );
     }
 

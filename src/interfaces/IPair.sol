@@ -35,8 +35,9 @@ interface IPair {
     ) external payable returns (uint256 nftNumOutput, uint256 tokenInput);
 
     function swapTokenForSpecificNFTs(
-        uint256[] calldata tokenIds,
-        bool allowAlternative,
+        uint256[] calldata targetTokenIds,
+        uint256 maxNFTNum,
+        uint256 minNFTNum,
         uint256 maxExpectedTokenInput,
         address nftRecipient,
         bool isRouter,

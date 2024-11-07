@@ -32,7 +32,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     address public nft;
     ICurve public bondingCurve;
     address public propertyChecker;
-    BitMaps.BitMap private saleOutNFTs;
+    BitMaps.BitMap private saleOutNFTs; // 7007/256 = 27  vs 7007
 
     uint256 public nextUnrevealedTokenId;
     uint256 public nftTotalSupply;
@@ -183,7 +183,8 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
     function swapTokenForSpecificNFTs(
         uint256[] calldata targetTokenIds,
-        bool allowAlternative,
+        uint256 maxNFTNum,
+        uint256 minNFTNum,
         uint256 maxExpectedTokenInput,
         address nftRecipient,
         bool, /* isRouter */
@@ -201,8 +202,9 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
             tokenIds[totalNFTNum] = tokenId;
             totalNFTNum += 1;
         }
-        if (totalNFTNum < targetNFTNum && allowAlternative) {
-            uint256[] memory newTokenIds = _selectNFTs(targetNFTNum - totalNFTNum);
+
+        if (totalNFTNum < maxNFTNum) {
+            uint256[] memory newTokenIds = _selectNFTs(maxNFTNum - totalNFTNum);
             for (uint256 i = 0; i < newTokenIds.length; i++) {
                 tokenIds[totalNFTNum] = newTokenIds[i];
                 totalNFTNum += 1;
@@ -211,6 +213,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         assembly {
             mstore(tokenIds, totalNFTNum)
         }
+        require(totalNFTNum >= minNFTNum);
         uint256 totalAmount = _swapTokenForSpecificNFTs(tokenIds, 0, maxExpectedTokenInput, nftRecipient);
 
         return (totalNFTNum, totalAmount);
