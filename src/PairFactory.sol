@@ -15,7 +15,7 @@ import {PairERC7007ETH} from "./PairERC7007ETH.sol";
 
 contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     mapping(address => bool) public bondingCurveAllowed;
-    mapping(address pair => bool) public isValidPair;
+    mapping(address pair => bool) public pairExists;
     mapping(address router => bool) public isRouterAllowed;
     mapping(address => bool) public allowlist;
 
@@ -23,6 +23,8 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
 
     event RouterStatusUpdate(address indexed router, bool isAllowed);
     event BondingCurveStatusUpdate(address indexed bondingCurve, bool isAllowed);
+    event AllowlistStatusUpdate(address indexed addr, bool isAllowed);
+    event NewPair(address indexed pair, address nft);
 
     error WrongPairType();
 
@@ -49,28 +51,23 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
             pair = _deployPair(_pairType, _nft);
             uint256 _nftTotalSupply = abi.decode(extraParams, (uint256));
             PairERC7007ETH(pair).initialize(_owner, _nft, ICurve(_bondingCurve), _propertyChecker, _nftTotalSupply);
-            isValidPair[pair] = true;
+            pairExists[pair] = true;
+            emit NewPair(pair, _nft);
         } else {
             revert WrongPairType();
         }
     }
 
+    function isValidPair(
+        address pair
+    ) external view returns (bool) {
+        return pairExists[pair];
+    }
+
     function _deployPair(PairType _pairType, address _nft) internal returns (address) {
         bytes32 salt = keccak256(abi.encodePacked(_pairType, _nft));
-        bytes memory initCode = abi.encodePacked(type(BeaconProxy).creationCode, abi.encode(erc7007ETHBeacon));
+        bytes memory initCode = abi.encodePacked(type(BeaconProxy).creationCode, abi.encode(erc7007ETHBeacon, ""));
         return Create2.deploy(0, salt, initCode);
-    }
-
-    function addToAllowlist(
-        address _address
-    ) external onlyOwner {
-        allowlist[_address] = true;
-    }
-
-    function removeFromAllowlist(
-        address _address
-    ) external onlyOwner {
-        allowlist[_address] = false;
     }
 
     function setRouterAllowed(address router, bool isAllowed) external onlyOwner {
@@ -81,6 +78,11 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
     function setBondingCurveAllowed(address bondingCurve, bool isAllowed) external onlyOwner {
         bondingCurveAllowed[bondingCurve] = isAllowed;
         emit BondingCurveStatusUpdate(bondingCurve, isAllowed);
+    }
+
+    function setAllowlistAllowed(address addr, bool isAllowed) external onlyOwner {
+        allowlist[addr] = isAllowed;
+        emit AllowlistStatusUpdate(addr, isAllowed);
     }
 
     function _authorizeUpgrade(

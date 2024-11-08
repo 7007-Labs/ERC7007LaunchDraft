@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -14,6 +14,9 @@ contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUp
 
     mapping(address => bool) public providerAllowed;
     mapping(uint256 => bool) public oraModelAllowed;
+
+    event ProviderStatusUpdate(address indexed provider, bool isAllowed);
+    event ORAModelStatusUpdate(uint256 indexed modelId, bool isAllowed);
 
     function initialize(address owner, address _implementation) external initializer {
         __Ownable_init(owner);
@@ -29,9 +32,9 @@ contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUp
         address provider,
         bytes calldata providerParams
     ) external returns (address collection) {
-        require(providerAllowed[provider]);
+        require(providerAllowed[provider], "provider not allowed");
         uint256 modelId = abi.decode(providerParams, (uint256));
-        require(oraModelAllowed[modelId]);
+        require(oraModelAllowed[modelId], "ora modelId not allowed");
 
         collection = _deployNFTCollection(provider, modelId, prompt);
         ORAERC7007Impl(collection).initialize(name, symbol, prompt, _owner, nsfw, modelId);
@@ -43,8 +46,7 @@ contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUp
         string calldata prompt
     ) internal returns (address) {
         bytes32 salt = keccak256(abi.encodePacked(provider, modelId, prompt));
-        bytes memory initCode = abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(nftCollectionImpl));
-        return Create2.deploy(0, salt, initCode);
+        return Clones.cloneDeterministic(nftCollectionImpl, salt);
     }
 
     function _authorizeUpgrade(
@@ -53,9 +55,11 @@ contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUp
 
     function setProviderAllowed(address provider, bool isAllowed) external onlyOwner {
         providerAllowed[provider] = isAllowed;
+        emit ProviderStatusUpdate(provider, isAllowed);
     }
 
     function setORAModelAllowed(uint256 modelId, bool isAllowed) external onlyOwner {
         oraModelAllowed[modelId] = isAllowed;
+        emit ORAModelStatusUpdate(modelId, isAllowed);
     }
 }

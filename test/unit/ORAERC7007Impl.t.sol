@@ -4,8 +4,8 @@ pragma solidity ^0.8.23;
 import {Test, console2} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {ORAERC7007Impl} from "../src/nft/ORAERC7007Impl.sol";
-import {IAIOracle} from "../src/interfaces/IAIOracle.sol";
+import {ORAERC7007Impl} from "../../src/nft/ORAERC7007Impl.sol";
+import {IAIOracle} from "../../src/interfaces/IAIOracle.sol";
 
 /*
 contract MockAIOracle is IAIOracle {

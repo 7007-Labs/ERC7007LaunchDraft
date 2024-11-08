@@ -6,17 +6,18 @@ pragma solidity ^0.8.23;
  * @notice Interface for managing fee configurations and calculations for trading pairs
  */
 interface IFeeManager {
-    struct FeeConfig {
-        address recipient;
-        uint16 feeBPS;
-        uint16 protocolBPS;
+    /// @notice Fee configuration for a pair
+    struct PairFeeConfig {
+        address feeRecipient; // 160 bits
+        uint16 pairFeeBps; // 16 bits
+        uint16 protocolFeeBps; // 16 bits
     }
 
-    function register(address recipient, uint16 feeBPS, uint16 protocolBPS) external;
+    function registerPair(address feeRecipient, uint16 pairFeeBps, uint16 protocolFeeBps) external;
 
-    function getPairConfig(
+    function getConfig(
         address pair
-    ) external view returns (FeeConfig memory);
+    ) external view returns (PairFeeConfig memory config);
 
     function calculateFees(
         address pair,

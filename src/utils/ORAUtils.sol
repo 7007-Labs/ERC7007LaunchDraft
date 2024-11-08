@@ -22,9 +22,6 @@ library ORAUtils {
             require(data.length >= offset + cidLength, "Invalid CID length");
 
             bytes memory cidBytes = new bytes(cidLength);
-            // for (uint32 j = 0; j < cidLength; j++) {
-            //     cidBytes[j] = data[offset + j];
-            // }
             assembly {
                 calldatacopy(add(cidBytes, 32), add(data.offset, offset), cidLength)
             }

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {Test, console2} from "forge-std/Test.sol";
-import {NFTMetadataRenderer} from "../src/utils/NFTMetadataRenderer.sol";
+import {NFTMetadataRenderer} from "../../src/utils/NFTMetadataRenderer.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 
 contract NFTMetadataRendererTest is Test {

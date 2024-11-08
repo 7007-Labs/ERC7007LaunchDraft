@@ -8,78 +8,168 @@ import {Multicall} from "@openzeppelin/contracts/utils/Multicall.sol";
 import {IFeeManager} from "./interfaces/IFeeManager.sol";
 import {IPair} from "./interfaces/IPair.sol";
 
+/**
+ * @title FeeManager
+ * @notice Manages fee configurations and calculations for pairs
+ * @dev Handles both protocol and pair-specific fees
+ */
 contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgradeable {
-    uint256 internal constant MAX_BPS = 5000;
-    uint256 internal constant BASIS_POINTS = 10_000;
+    /// @notice Maximum allowed fee in basis points (50%)
+    uint256 private constant MAX_BPS = 5000;
+    /// @notice Basis points denominator (100%)
+    uint256 private constant BASIS_POINTS = 10_000;
+
+    /// @notice Address that receives protocol fees
     address public protocolFeeRecipient;
 
-    mapping(address pair => FeeConfig) public configs;
+    /// @notice Fee configurations for each pair
+    mapping(address => PairFeeConfig) public pairConfigs;
 
-    function initialize(address _owner, address _protocolFeeRecipient) external initializer {
-        __Ownable_init(_owner);
-        protocolFeeRecipient = _protocolFeeRecipient;
+    error ZeroAddress();
+    error FeesExceedMaximum();
+    error PairAlreadyRegistered();
+    error PairNotRegistered();
+    error NotPairOwner();
+
+    event PairRegistered(address indexed pair, address indexed feeRecipient, uint16 pairFeeBps, uint16 protocolFeeBps);
+    event PairRecipientUpdated(address indexed pair, address indexed oldRecipient, address indexed newRecipient);
+    event ProtocolRecipientUpdated(address indexed oldRecipient, address indexed newRecipient);
+    event PairFeesUpdated(address indexed pair, uint16 pairFeeBps, uint16 protocolFeeBps);
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
-    function register(address recipient, uint16 feeBPS, uint16 protocolBPS) external {
-        require(recipient != address(0));
-        FeeConfig storage config = configs[msg.sender];
-        config.feeBPS = feeBPS;
-        config.protocolBPS = protocolBPS;
-        config.recipient = recipient;
+    /**
+     * @notice Initializes the contract
+     * @param initialOwner Address of the contract owner
+     * @param initialFeeRecipient Address to receive protocol fees
+     */
+    function initialize(address initialOwner, address initialFeeRecipient) external initializer {
+        if (initialOwner == address(0)) revert ZeroAddress();
+        if (initialFeeRecipient == address(0)) revert ZeroAddress();
+
+        __Ownable_init(initialOwner);
+        protocolFeeRecipient = initialFeeRecipient;
     }
 
-    function getPairConfig(
+    /**
+     * @notice Registers a new pair with fee configuration
+     * @param feeRecipient Address to receive pair fees
+     * @param pairFeeBps Pair fee in basis points
+     * @param protocolFeeBps Protocol fee in basis points
+     */
+    function registerPair(address feeRecipient, uint16 pairFeeBps, uint16 protocolFeeBps) external {
+        if (feeRecipient == address(0)) revert ZeroAddress();
+        if (pairFeeBps + protocolFeeBps > MAX_BPS) revert FeesExceedMaximum();
+
+        PairFeeConfig storage config = pairConfigs[msg.sender];
+        if (config.feeRecipient != address(0)) revert PairAlreadyRegistered();
+
+        config.feeRecipient = feeRecipient;
+        config.pairFeeBps = pairFeeBps;
+        config.protocolFeeBps = protocolFeeBps;
+
+        emit PairRegistered(msg.sender, feeRecipient, pairFeeBps, protocolFeeBps);
+    }
+
+    /**
+     * @notice Gets the fee configuration for a pair
+     * @param pair Address of the pair
+     * @return config Fee configuration
+     */
+    function getConfig(
         address pair
-    ) external view returns (FeeConfig memory) {
-        return configs[pair];
+    ) external view returns (PairFeeConfig memory config) {
+        return pairConfigs[pair];
     }
 
+    /**
+     * @notice Calculates fees for a given amount
+     * @param pair Address of the pair
+     * @param amount The amount to calculate fees for
+     * @return recipients Array of fee recipients
+     * @return amounts Array of fee amounts
+     */
     function calculateFees(
         address pair,
         uint256 amount
     ) external view returns (address payable[] memory recipients, uint256[] memory amounts) {
-        FeeConfig storage config = configs[pair];
-        require(config.recipient != address(0));
+        PairFeeConfig storage config = pairConfigs[pair];
+        if (config.feeRecipient == address(0)) revert PairNotRegistered();
+
+        uint256 pairFee = (amount * config.pairFeeBps) / BASIS_POINTS;
+        uint256 protocolFee = (amount * config.protocolFeeBps) / BASIS_POINTS;
 
         recipients = new address payable[](2);
         amounts = new uint256[](2);
 
-        recipients[0] = payable(config.recipient);
-        amounts[0] = (amount * config.feeBPS) / BASIS_POINTS;
-
+        recipients[0] = payable(config.feeRecipient);
         recipients[1] = payable(protocolFeeRecipient);
-        amounts[1] = (amount * config.protocolBPS) / BASIS_POINTS;
+
+        amounts[0] = pairFee;
+        amounts[1] = protocolFee;
 
         return (recipients, amounts);
     }
 
-    function updatePairCreatorFeeRecipient(address pair, address newRecipient) external {
-        // only the owner of pair
-        require(msg.sender == IPair(pair).owner());
-        require(newRecipient != address(0));
+    /**
+     * @notice Updates the fee recipient for a pair
+     * @param pair Address of the pair
+     * @param newFeeRecipient New fee recipient address
+     */
+    function updatePairRecipient(address pair, address newFeeRecipient) external {
+        if (msg.sender != IPair(pair).owner()) revert NotPairOwner();
+        if (newFeeRecipient == address(0)) revert ZeroAddress();
 
-        FeeConfig storage config = configs[pair];
-        require(config.recipient != address(0));
+        PairFeeConfig storage config = pairConfigs[pair];
+        if (config.feeRecipient == address(0)) revert PairNotRegistered();
 
-        config.recipient = newRecipient;
+        address oldRecipient = config.feeRecipient;
+        config.feeRecipient = newFeeRecipient;
+
+        emit PairRecipientUpdated(pair, oldRecipient, newFeeRecipient);
     }
 
-    function updateProtocolFeeRecipient(
-        address newProtocolFeeRecipient
+    /**
+     * @notice Updates the protocol fee recipient
+     * @param newFeeRecipient New protocol fee recipient address
+     */
+    function updateProtocolRecipient(
+        address newFeeRecipient
     ) external onlyOwner {
-        protocolFeeRecipient = newProtocolFeeRecipient;
+        if (newFeeRecipient == address(0)) revert ZeroAddress();
+
+        address oldRecipient = protocolFeeRecipient;
+        protocolFeeRecipient = newFeeRecipient;
+
+        emit ProtocolRecipientUpdated(oldRecipient, newFeeRecipient);
     }
 
-    function updatePairFeeBPS(address pair, uint16 newFeeBPS, uint16 newProtocolBPS) external onlyOwner {
-        require(newFeeBPS + newProtocolBPS <= MAX_BPS);
-        FeeConfig storage config = configs[pair];
-        require(config.recipient != address(0));
+    /**
+     * @notice Updates fees for a pair
+     * @param pair Address of the pair
+     * @param pairFeeBps New pair fee in basis points
+     * @param protocolFeeBps New protocol fee in basis points
+     */
+    function updatePairFees(address pair, uint16 pairFeeBps, uint16 protocolFeeBps) external onlyOwner {
+        if (pairFeeBps + protocolFeeBps > MAX_BPS) revert FeesExceedMaximum();
 
-        config.feeBPS = newFeeBPS;
-        config.protocolBPS = newProtocolBPS;
+        PairFeeConfig storage config = pairConfigs[pair];
+        if (config.feeRecipient == address(0)) revert PairNotRegistered();
+
+        config.pairFeeBps = pairFeeBps;
+        config.protocolFeeBps = protocolFeeBps;
+
+        emit PairFeesUpdated(pair, pairFeeBps, protocolFeeBps);
     }
 
+    /**
+     * @notice Authorizes an upgrade to a new implementation
+     * @param newImplementation Address of new implementation
+     */
     function _authorizeUpgrade(
-        address
+        address newImplementation
     ) internal override onlyOwner {}
 }

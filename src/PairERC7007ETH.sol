@@ -24,6 +24,9 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     using Address for address payable;
     using BitMaps for BitMaps.BitMap;
 
+    uint16 public constant DEFAULT_FEE_BPS = 0;
+    uint16 public constant DEFAULT_PROTOCOL_FEE_BPS = 10;
+
     IPairFactory public immutable factory;
     IRoyaltyManager public immutable royaltyManager;
     IFeeManager public immutable feeManager;
@@ -32,12 +35,10 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     address public nft;
     ICurve public bondingCurve;
     address public propertyChecker;
-    BitMaps.BitMap private saleOutNFTs; // 7007/256 = 27  vs 7007
+    BitMaps.BitMap private saleOutNFTs;
 
     uint256 public nextUnrevealedTokenId;
     uint256 public nftTotalSupply;
-    uint16 public constant defaultFeeBPS = 0;
-    uint16 public constant defaultProtocolFeeBPS = 10;
 
     // Events
     event SwapNFTInPair(uint256 amountOut, uint256[] ids);
@@ -49,6 +50,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     error InputTooLarge();
     error InsufficientInput();
     error TokenIdUnrevealed();
+    error RouterOnly();
     error NotRouter();
     error OutputTooSmall();
 
@@ -68,11 +70,150 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         uint256 _nftTotalSupply
     ) external initializer {
         __Ownable_init(_owner);
+        require(_nftTotalSupply > 0);
+        require(_nft != address(0));
         nft = _nft;
         bondingCurve = _bondingCurve;
         propertyChecker = _propertyChecker;
         nftTotalSupply = _nftTotalSupply;
-        feeManager.register(_owner, defaultFeeBPS, defaultProtocolFeeBPS);
+        feeManager.registerPair(_owner, DEFAULT_FEE_BPS, DEFAULT_PROTOCOL_FEE_BPS);
+    }
+
+    function swapTokenForNFTs(
+        uint256 nftNum,
+        uint256 maxExpectedTokenInput,
+        address nftRecipient,
+        bool, /* isRouter */
+        address /* routerCaller */
+    ) external payable nonReentrant returns (uint256, uint256) {
+        if (!factory.isRouterAllowed(msg.sender)) revert NotRouter();
+
+        if (nftNum == 0) revert ZeroSwapAmount();
+        uint256[] memory tokenIds;
+        uint256 aigcAmount = 0;
+        uint256 totalNFTNum = 0;
+
+        tokenIds = new uint256[](nftNum);
+        uint256 unrevealedNFTNum = Math.min(nftNum, nftTotalSupply - nextUnrevealedTokenId);
+
+        for (uint256 i = 0; i < unrevealedNFTNum; i++) {
+            tokenIds[i] = nextUnrevealedTokenId + i;
+        }
+        if (unrevealedNFTNum > 0) {
+            nextUnrevealedTokenId += unrevealedNFTNum;
+            assembly {
+                mstore(tokenIds, unrevealedNFTNum)
+            }
+            IORAERC7007(nft).reveal{value: aigcAmount}(tokenIds);
+            assembly {
+                mstore(tokenIds, nftNum)
+            }
+        }
+        uint256 revealedNFTNum = 0;
+        if (unrevealedNFTNum < nftNum) {
+            uint256[] memory revealedTokenIds = _selectNFTs(nftNum - unrevealedNFTNum);
+            revealedNFTNum = revealedTokenIds.length;
+            for (uint256 i = 0; i < revealedNFTNum; i++) {
+                tokenIds[i + unrevealedNFTNum] = revealedTokenIds[i];
+            }
+        }
+        totalNFTNum = unrevealedNFTNum + unrevealedNFTNum;
+
+        assembly {
+            mstore(tokenIds, totalNFTNum)
+        }
+        uint256 totalAmount = _swapTokenForSpecificNFTs(tokenIds, aigcAmount, maxExpectedTokenInput, nftRecipient);
+        return (totalNFTNum, totalAmount);
+    }
+
+    function swapTokenForSpecificNFTs(
+        uint256[] calldata targetTokenIds,
+        uint256 maxNFTNum,
+        uint256 minNFTNum,
+        uint256 maxExpectedTokenInput,
+        address nftRecipient,
+        bool isRouter,
+        address /* routerCaller */
+    ) external payable nonReentrant returns (uint256, uint256) {
+        if (!factory.isRouterAllowed(msg.sender)) revert NotRouter();
+
+        uint256 targetNFTNum = targetTokenIds.length;
+        if (targetNFTNum == 0) revert ZeroSwapAmount();
+
+        uint256[] memory tokenIds = new uint256[](targetNFTNum);
+        uint256 totalNFTNum = 0;
+
+        for (uint256 i = 0; i < targetNFTNum; i++) {
+            uint256 tokenId = targetTokenIds[i];
+            if (saleOutNFTs.get(tokenId)) continue;
+            tokenIds[totalNFTNum] = tokenId;
+            totalNFTNum += 1;
+        }
+
+        if (totalNFTNum < maxNFTNum) {
+            uint256[] memory newTokenIds = _selectNFTs(maxNFTNum - totalNFTNum);
+            for (uint256 i = 0; i < newTokenIds.length; i++) {
+                tokenIds[totalNFTNum] = newTokenIds[i];
+                totalNFTNum += 1;
+            }
+        }
+        assembly {
+            mstore(tokenIds, totalNFTNum)
+        }
+        require(totalNFTNum >= minNFTNum);
+        uint256 totalAmount = _swapTokenForSpecificNFTs(tokenIds, 0, maxExpectedTokenInput, nftRecipient);
+
+        return (totalNFTNum, totalAmount);
+    }
+
+    function swapNFTsForToken(
+        uint256[] calldata tokenIds,
+        uint256 minExpectedTokenOutput,
+        address payable tokenRecipient,
+        bool isRouter,
+        address routerCaller
+    ) external nonReentrant returns (uint256 outputAmount) {
+        if (!factory.isRouterAllowed(msg.sender)) revert NotRouter();
+
+        if (tokenIds.length == 0) revert ZeroSwapAmount();
+        uint256 price = ICurve(bondingCurve).getSellPrice(address(this), tokenIds.length);
+        // 计算Fee
+        (address payable[] memory feeRecipients, uint256[] memory feeAmounts) =
+            IFeeManager(feeManager).calculateFees(address(this), price);
+        uint256 totalFee = 0;
+        for (uint256 i = 0; i < feeRecipients.length; i++) {
+            totalFee += feeAmounts[i];
+        }
+
+        outputAmount = price - totalFee;
+        // 计算royalty
+        (address payable[] memory royaltyRecipients, uint256[] memory royaltyAmounts) =
+            IRoyaltyManager(royaltyManager).calculateRoyaltyFee(address(this), tokenIds[0], outputAmount);
+
+        uint256 totalRoyalty = 0;
+        for (uint256 i = 0; i < royaltyRecipients.length; i++) {
+            totalRoyalty += royaltyAmounts[i];
+        }
+
+        // 资产检查
+        outputAmount -= totalRoyalty;
+        if (outputAmount < minExpectedTokenOutput) {
+            revert OutputTooSmall();
+        }
+        // 转nft
+        _takeNFTsFromSender(nft, tokenIds, isRouter, routerCaller);
+
+        // 转token
+        tokenRecipient.sendValue(outputAmount);
+
+        for (uint256 i = 0; i < feeRecipients.length; i++) {
+            feeRecipients[i].sendValue(feeAmounts[i]);
+        }
+
+        for (uint256 i = 0; i < royaltyRecipients.length; i++) {
+            royaltyRecipients[i].sendValue(royaltyAmounts[i]);
+        }
+        emit SwapNFTInPair(outputAmount, tokenIds);
     }
 
     function _swapTokenForSpecificNFTs(
@@ -132,93 +273,6 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         emit SwapNFTOutPair(totalAmount, tokenIds);
     }
 
-    function swapTokenForNFTs(
-        uint256 nftNum,
-        uint256 maxExpectedTokenInput,
-        address nftRecipient,
-        bool isRouter,
-        address /* routerCaller */
-    ) external payable nonReentrant returns (uint256, uint256) {
-        require(isRouter, "Only Router");
-
-        if (!factory.isRouterAllowed(msg.sender)) revert NotRouter();
-
-        if (nftNum == 0) revert ZeroSwapAmount();
-        uint256[] memory tokenIds;
-        uint256 aigcAmount = 0;
-        uint256 totalNFTNum = 0;
-
-        tokenIds = new uint256[](nftNum);
-        uint256 unrevealedNFTNum = Math.min(nftNum, nftTotalSupply - nextUnrevealedTokenId);
-
-        for (uint256 i = 0; i < unrevealedNFTNum; i++) {
-            tokenIds[i] = nextUnrevealedTokenId + i;
-        }
-        if (unrevealedNFTNum > 0) {
-            nextUnrevealedTokenId += unrevealedNFTNum;
-            assembly {
-                mstore(tokenIds, unrevealedNFTNum)
-            }
-            IORAERC7007(nft).reveal{value: aigcAmount}(tokenIds);
-            assembly {
-                mstore(tokenIds, nftNum)
-            }
-        }
-        uint256 revealedNFTNum = 0;
-        if (unrevealedNFTNum < nftNum) {
-            uint256[] memory revealedTokenIds = _selectNFTs(nftNum - unrevealedNFTNum);
-            revealedNFTNum = revealedTokenIds.length;
-            for (uint256 i = 0; i < revealedNFTNum; i++) {
-                tokenIds[i + unrevealedNFTNum] = revealedTokenIds[i];
-            }
-        }
-        totalNFTNum = unrevealedNFTNum + unrevealedNFTNum;
-
-        assembly {
-            mstore(tokenIds, totalNFTNum)
-        }
-        uint256 totalAmount = _swapTokenForSpecificNFTs(tokenIds, aigcAmount, maxExpectedTokenInput, nftRecipient);
-        return (totalNFTNum, totalAmount);
-    }
-
-    function swapTokenForSpecificNFTs(
-        uint256[] calldata targetTokenIds,
-        uint256 maxNFTNum,
-        uint256 minNFTNum,
-        uint256 maxExpectedTokenInput,
-        address nftRecipient,
-        bool, /* isRouter */
-        address /* routerCaller */
-    ) external payable nonReentrant returns (uint256, uint256) {
-        uint256 targetNFTNum = targetTokenIds.length;
-        if (targetNFTNum == 0) revert ZeroSwapAmount();
-
-        uint256[] memory tokenIds = new uint256[](targetNFTNum);
-        uint256 totalNFTNum = 0;
-
-        for (uint256 i = 0; i < targetNFTNum; i++) {
-            uint256 tokenId = targetTokenIds[i];
-            if (saleOutNFTs.get(tokenId)) continue;
-            tokenIds[totalNFTNum] = tokenId;
-            totalNFTNum += 1;
-        }
-
-        if (totalNFTNum < maxNFTNum) {
-            uint256[] memory newTokenIds = _selectNFTs(maxNFTNum - totalNFTNum);
-            for (uint256 i = 0; i < newTokenIds.length; i++) {
-                tokenIds[totalNFTNum] = newTokenIds[i];
-                totalNFTNum += 1;
-            }
-        }
-        assembly {
-            mstore(tokenIds, totalNFTNum)
-        }
-        require(totalNFTNum >= minNFTNum);
-        uint256 totalAmount = _swapTokenForSpecificNFTs(tokenIds, 0, maxExpectedTokenInput, nftRecipient);
-
-        return (totalNFTNum, totalAmount);
-    }
-
     function _refundTokenToSender(
         uint256 inputAmount
     ) internal {
@@ -247,57 +301,6 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         }
     }
 
-    function swapNFTsForToken(
-        uint256[] calldata tokenIds,
-        uint256 minExpectedTokenOutput,
-        address payable tokenRecipient,
-        bool isRouter,
-        address routerCaller
-    ) external nonReentrant returns (uint256 outputAmount) {
-        require(isRouter, "Only Router");
-        if (!factory.isRouterAllowed(msg.sender)) revert NotRouter();
-
-        if (tokenIds.length == 0) revert ZeroSwapAmount();
-        uint256 price = ICurve(bondingCurve).getSellPrice(address(this), tokenIds.length);
-        // 计算Fee
-        (address payable[] memory feeRecipients, uint256[] memory feeAmounts) =
-            IFeeManager(feeManager).calculateFees(address(this), price);
-        uint256 totalFee = 0;
-        for (uint256 i = 0; i < feeRecipients.length; i++) {
-            totalFee += feeAmounts[i];
-        }
-
-        outputAmount = price - totalFee;
-        // 计算royalty
-        (address payable[] memory royaltyRecipients, uint256[] memory royaltyAmounts) =
-            IRoyaltyManager(royaltyManager).calculateRoyaltyFee(address(this), tokenIds[0], outputAmount);
-
-        uint256 totalRoyalty = 0;
-        for (uint256 i = 0; i < royaltyRecipients.length; i++) {
-            totalRoyalty += royaltyAmounts[i];
-        }
-
-        // 资产检查
-        outputAmount -= totalRoyalty;
-        if (outputAmount < minExpectedTokenOutput) {
-            revert OutputTooSmall();
-        }
-        // 转nft
-        _takeNFTsFromSender(nft, tokenIds, isRouter, routerCaller);
-
-        // 转token
-        tokenRecipient.sendValue(outputAmount);
-
-        for (uint256 i = 0; i < feeRecipients.length; i++) {
-            feeRecipients[i].sendValue(feeAmounts[i]);
-        }
-
-        for (uint256 i = 0; i < royaltyRecipients.length; i++) {
-            royaltyRecipients[i].sendValue(royaltyAmounts[i]);
-        }
-        emit SwapNFTInPair(outputAmount, tokenIds);
-    }
-
     function _takeNFTsFromSender(
         address _nft,
         uint256[] calldata tokenIds,
@@ -314,12 +317,12 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     function getBuyNFTQuote(
         uint256 assetId,
         uint256 numItems,
-        bool isPick // 是否选购
+        bool isPick
     ) external view returns (uint256 inputAmount, uint256 aigcAmount, uint256 royaltyAmount) {
         uint256 unRevealedNFTNum;
         if (!isPick) {
             unRevealedNFTNum = Math.min(numItems, nftTotalSupply - nextUnrevealedTokenId);
-            aigcAmount = IORAERC7007(nft).estimateFee(unRevealedNFTNum);
+            aigcAmount = IORAERC7007(nft).estimateRevealFee(unRevealedNFTNum);
         }
         uint256 price = ICurve(bondingCurve).getBuyPrice(address(this), numItems);
 
