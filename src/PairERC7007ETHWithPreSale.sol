@@ -116,6 +116,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         SalesConfig calldata _salesConfig
     ) internal view {
         // todo: 检查参数是否合理
+        // todo: 如何检查initPrice和preSaleMaxNum是否合理，用bondingCurve?
     }
 
     function purchasePresale(
