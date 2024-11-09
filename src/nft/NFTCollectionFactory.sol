@@ -12,15 +12,22 @@ import {ORAERC7007Impl} from "./ORAERC7007Impl.sol";
 contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     address public nftCollectionImpl;
 
+    mapping(address => bool) public allowlist;
     mapping(address => bool) public providerAllowed;
     mapping(uint256 => bool) public oraModelAllowed;
 
     event ProviderStatusUpdate(address indexed provider, bool isAllowed);
     event ORAModelStatusUpdate(uint256 indexed modelId, bool isAllowed);
+    event AllowlistStatusUpdate(address indexed addr, bool isAllowed);
 
     function initialize(address owner, address _implementation) external initializer {
         __Ownable_init(owner);
         nftCollectionImpl = _implementation;
+    }
+
+    modifier onlyAllowlist() {
+        require(allowlist[msg.sender], "Only allowlist");
+        _;
     }
 
     function createNFTCollection(
@@ -31,7 +38,7 @@ contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUp
         bool nsfw,
         address provider,
         bytes calldata providerParams
-    ) external returns (address collection) {
+    ) external onlyAllowlist returns (address collection) {
         require(providerAllowed[provider], "provider not allowed");
         uint256 modelId = abi.decode(providerParams, (uint256));
         require(oraModelAllowed[modelId], "ora modelId not allowed");
@@ -61,5 +68,10 @@ contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUp
     function setORAModelAllowed(uint256 modelId, bool isAllowed) external onlyOwner {
         oraModelAllowed[modelId] = isAllowed;
         emit ORAModelStatusUpdate(modelId, isAllowed);
+    }
+
+    function setAllowlistAllowed(address addr, bool isAllowed) external onlyOwner {
+        allowlist[addr] = isAllowed;
+        emit AllowlistStatusUpdate(addr, isAllowed);
     }
 }

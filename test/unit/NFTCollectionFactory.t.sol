@@ -28,12 +28,20 @@ contract NFTCollectionFactoryTest is Test {
             abi.encodeWithSelector(NFTCollectionFactory.initialize.selector, owner, address(implementation));
         ERC1967Proxy proxy = new ERC1967Proxy(address(factoryImpl), initData);
         factory = NFTCollectionFactory(address(proxy));
+        _configAllowlist();
     }
 
     function _configProviderAndModel() internal {
         vm.startPrank(owner);
         factory.setProviderAllowed(provider, true);
         factory.setORAModelAllowed(modelId, true);
+        vm.stopPrank();
+    }
+
+    function _configAllowlist() internal {
+        vm.startPrank(owner);
+        factory.setAllowlistAllowed(address(this), true);
+        factory.setAllowlistAllowed(user, true);
         vm.stopPrank();
     }
 
