@@ -128,10 +128,18 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         address nftRecipient,
         bytes32[] calldata merkleProof //对应presale白名单功能
     ) external payable nonReentrant onlyPresaleActive returns (uint256, uint256) {
-        // 预售是在固定时间内使用了固定价格的购买，对于没有售卖结束的nft，直接转入公开售卖中。
-        // todo: 是否限制仅通过erc7007launch来操作, 如果通过erc7007launch，要考虑两边白名单的交互方式(可以调用pair中的isWhitelist(address)方法)
-        // todo: 对msg.sender 做白名单检查
-        // todo: 采用有多少卖多少的策略, 没加入类似于minTokenOut的限定逻辑
+        // 预售是在固定时间内使用了固定价格的购买,此时不调整bondingCurve(不修改supply等涉及到计算的操作),预售结束后考虑是否调整bondingCurve。
+        // 对于没有售卖结束的nft，直接转入公开售卖中。
+        // 如果预售结束后不调整bondingCurve,最新的购买者会以低于initPrice的价格买入新的nft
+        // 调整的话，考虑加入给特定操作者使用的函数,cleanAllPresaleNFTs()，将剩余nft一次性买走。需要加一个字段判断这种调整操作是否完成，完成后才能公开发售。
+
+        // todo: bondingCurve中的supply计算方式暂定为 nft.totalSupply() - nft.balanceOf(pair),
+        // 考虑pair内部使用变量来记录supply, 目前( nft.totalSupply() - nft.balanceOf(pair) )的计算方式，
+        // 会出现用户买了nft后，直接转给pair,这时的nft由于saleOutNFTs的限制，无法直接购买，需要调用syncNFTStatus，同步pair拥有的nft状态。
+
+        // todo: 是否限制仅通过erc7007launch来操作, 如果通过erc7007launch，要考虑两边白名单的交互方式(可以调用pair中的isWhitelist(address)方法)。
+        // todo: 对msg.sender 做白名单检查。
+        // todo: 采用有多少卖多少的策略, 没加入类似于minTokenOut的限定逻辑。
 
         uint256 presaleNum = Math.min(nftNum, salesConfig.presaleMaxNum - nextUnrevealedTokenId);
         // 处理presaleNum为0的情况
