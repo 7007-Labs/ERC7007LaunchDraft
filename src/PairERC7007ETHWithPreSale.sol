@@ -57,17 +57,19 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     error OutputTooSmall();
     error PresaleInactive();
     error SaleInactive();
-    error PurcharseTooManyForAddress();
+    error PresaleTooManyForAddress();
+    error SoldOut();
 
     struct SalesConfig {
-        uint96 initPrice;
-        uint32 maxPresalePurchasePerAddress;
+        uint96 initPrice; //初始价格，预售时采用这个价格
+        uint32 maxPresalePurchasePerAddress; //每个msg.sender 最多购买数量
         uint64 presaleStart;
         uint64 presaleEnd; // 值为0表示不启用预售, 左闭右开区间
-        ICurve bondingCurve;
-        uint64 preSaleMaxNum; // 预售最大数量
+        ICurve bondingCurve; //公开发售时使用的bondingCurve
+        uint64 presaleMaxNum; // 预售最大数量
         bytes32 presaleMerkleRoot; //todo: 预售白名单使用merkle，暂定, 白名单为一次性定好还是可以修改
-            // 没有定义公开发售时间范围，暂定为预售后
+            // 没有定义公开发售时间范围，公开发售的时间一定要在预售后，暂定presaleEnd为公开发售开始时间
+            // 预售阶段只有买没有卖
     }
 
     SalesConfig public salesConfig;
@@ -109,6 +111,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         nftTotalSupply = _nftTotalSupply;
         _checkSalesConfig(_salesConfig);
         salesConfig = _salesConfig;
+
         feeManager.registerPair(_owner, DEFAULT_FEE_BPS, DEFAULT_PROTOCOL_FEE_BPS);
     }
 
@@ -116,15 +119,43 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         SalesConfig calldata _salesConfig
     ) internal view {
         // todo: 检查参数是否合理
-        // todo: 如何检查initPrice和preSaleMaxNum是否合理，用bondingCurve?
+        // todo: 如何检查initPrice和preSaleMaxNum是否合理，用bondingCurve, 需要bondingCurve根据preSaleMaxNum计算一个最小的initPrice
     }
 
     function purchasePresale(
         uint256 nftNum,
+        uint256 maxExpectedTokenInput,
+        address nftRecipient,
         bytes32[] calldata merkleProof //对应presale白名单功能
-    ) external payable nonReentrant onlyPresaleActive {
-        // todo: 是否限制仅通过erc7007eth launch来操作, 如果通过launch，要考虑两边白名单的交互方式
+    ) external payable nonReentrant onlyPresaleActive returns (uint256, uint256) {
+        // 预售是在固定时间内使用了固定价格的购买，对于没有售卖结束的nft，直接转入公开售卖中。
+        // todo: 是否限制仅通过erc7007launch来操作, 如果通过erc7007launch，要考虑两边白名单的交互方式(可以调用pair中的isWhitelist(address)方法)
         // todo: 对msg.sender 做白名单检查
+        // todo: 采用有多少卖多少的策略, 没加入类似于minTokenOut的限定逻辑
+
+        uint256 presaleNum = Math.min(nftNum, salesConfig.presaleMaxNum - nextUnrevealedTokenId);
+        // 处理presaleNum为0的情况
+        if (presaleNum == 0) revert SoldOut();
+
+        // 检查是否超过地址购买上限
+        // todo: 如果通过erc7007Launch，需要做一定修改
+        if (presalePurchasePerAddress[msg.sender] + presaleNum > salesConfig.maxPresalePurchasePerAddress) {
+            revert PresaleTooManyForAddress();
+        }
+
+        uint256[] memory tokenIds = new uint256[](presaleNum);
+        for (uint256 i = 0; i < presaleNum; i++) {
+            tokenIds[i] = nextUnrevealedTokenId + i;
+        }
+        nextUnrevealedTokenId += presaleNum;
+
+        uint256 aigcAmount = IORAERC7007(nft).estimateRevealFee(presaleNum);
+        IORAERC7007(nft).reveal{value: aigcAmount}(tokenIds);
+
+        uint256 price = salesConfig.initPrice * presaleNum;
+        uint256 totalAmount =
+            _swapTokenForSpecificNFTs(tokenIds, price, aigcAmount, maxExpectedTokenInput, nftRecipient);
+        return (presaleNum, totalAmount);
     }
 
     function swapTokenForNFTs(
@@ -133,13 +164,12 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         address nftRecipient,
         bool, /* isRouter */
         address /* routerCaller */
-    ) external payable nonReentrant onlyPublicSaleActive returns (uint256, uint256) {
+    ) external payable nonReentrant onlyPublicSaleActive returns (uint256 totalNFTNum, uint256 totalAmount) {
         if (!factory.isRouterAllowed(msg.sender)) revert NotRouter();
 
         if (nftNum == 0) revert ZeroSwapAmount();
         uint256[] memory tokenIds;
         uint256 aigcAmount = 0;
-        uint256 totalNFTNum = 0;
 
         tokenIds = new uint256[](nftNum);
         uint256 unrevealedNFTNum = Math.min(nftNum, nftTotalSupply - nextUnrevealedTokenId);
@@ -148,6 +178,8 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
             tokenIds[i] = nextUnrevealedTokenId + i;
         }
         if (unrevealedNFTNum > 0) {
+            aigcAmount = IORAERC7007(nft).estimateRevealFee(unrevealedNFTNum);
+
             nextUnrevealedTokenId += unrevealedNFTNum;
             assembly {
                 mstore(tokenIds, unrevealedNFTNum)
@@ -166,12 +198,12 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
             }
         }
         totalNFTNum = unrevealedNFTNum + unrevealedNFTNum;
-
+        if (totalNFTNum == 0) revert SoldOut();
         assembly {
             mstore(tokenIds, totalNFTNum)
         }
-        uint256 totalAmount = _swapTokenForSpecificNFTs(tokenIds, aigcAmount, maxExpectedTokenInput, nftRecipient);
-        return (totalNFTNum, totalAmount);
+        uint256 price = _bondingCurve().getBuyPrice(address(this), totalNFTNum);
+        totalAmount = _swapTokenForSpecificNFTs(tokenIds, price, aigcAmount, maxExpectedTokenInput, nftRecipient);
     }
 
     function swapTokenForSpecificNFTs(
@@ -182,14 +214,13 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         address nftRecipient,
         bool isRouter,
         address /* routerCaller */
-    ) external payable nonReentrant onlyPublicSaleActive returns (uint256, uint256) {
+    ) external payable nonReentrant onlyPublicSaleActive returns (uint256 totalNFTNum, uint256 totalAmount) {
         if (!factory.isRouterAllowed(msg.sender)) revert NotRouter();
 
         uint256 targetNFTNum = targetTokenIds.length;
         if (targetNFTNum == 0) revert ZeroSwapAmount();
 
         uint256[] memory tokenIds = new uint256[](targetNFTNum);
-        uint256 totalNFTNum = 0;
 
         for (uint256 i = 0; i < targetNFTNum; i++) {
             uint256 tokenId = targetTokenIds[i];
@@ -205,13 +236,15 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
                 totalNFTNum += 1;
             }
         }
+        if (totalNFTNum == 0) revert SoldOut();
+
         assembly {
             mstore(tokenIds, totalNFTNum)
         }
         require(totalNFTNum >= minNFTNum);
-        uint256 totalAmount = _swapTokenForSpecificNFTs(tokenIds, 0, maxExpectedTokenInput, nftRecipient);
 
-        return (totalNFTNum, totalAmount);
+        uint256 price = _bondingCurve().getBuyPrice(address(this), totalNFTNum);
+        totalAmount = _swapTokenForSpecificNFTs(tokenIds, price, 0, maxExpectedTokenInput, nftRecipient);
     }
 
     function swapNFTsForToken(
@@ -266,13 +299,14 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
     function _swapTokenForSpecificNFTs(
         uint256[] memory tokenIds,
+        uint256 price,
         uint256 aigcAmount,
         uint256 maxExpectedTokenInput,
         address nftRecipient
     ) internal returns (uint256 totalAmount) {
         uint256 nftNum = tokenIds.length;
         // 计算价格
-        uint256 price = _bondingCurve().getBuyPrice(address(this), nftNum);
+        // uint256 price = _bondingCurve().getBuyPrice(address(this), nftNum);
 
         // 计算Fee
         (address payable[] memory feeRecipients, uint256[] memory feeAmounts) =
