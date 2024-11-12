@@ -17,6 +17,8 @@ contract Deploy is ExistingDeploymentParser {
         vm.startBroadcast();
         _deployFromScrath();
         _deployBondCurves();
+        _configORA();
+        _configBondingCurves();
         vm.stopBroadcast();
 
         outputContractAddresses(getOutputPath());
@@ -90,4 +92,11 @@ contract Deploy is ExistingDeploymentParser {
             pairFactoryProxy.setBondingCurveAllowed(bondingCurves[i].addr, true);
         }
     }
+
+    function _configPermission() internal {
+        pairFactoryProxy.setAllowlistAllowed(address(erc7007LaunchProxy), true);
+        nftCollectionFactoryProxy.setAllowlistAllowed(address(erc7007LaunchProxy), true);
+    }
+
+    function _transferOwnership() internal {}
 }

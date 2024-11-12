@@ -11,7 +11,10 @@ contract MockAIOracle {
     uint256 seq;
 
     struct RequestData {
+        address account;
+        uint256 requestId;
         uint256 modelId;
+        bytes input;
         address callbackContract;
         uint64 gasLimit;
         bytes callbackData;
@@ -52,7 +55,7 @@ contract MockAIOracle {
     function requestBatchInference(
         uint256 batchSize,
         uint256 modelId,
-        bytes memory, /* input */
+        bytes memory input,
         address callbackContract,
         uint64 gasLimit,
         bytes memory callbackData,
@@ -62,11 +65,15 @@ contract MockAIOracle {
         // validate params
         uint256 fee = estimateFeeBatch(modelId, gasLimit, batchSize);
         require(msg.value >= fee, "insufficient fee");
+
         uint256 requestId = seq;
         seq++;
 
         RequestData storage request = requests[requestId];
+        request.account = msg.sender;
+        request.requestId = requestId;
         request.modelId = modelId;
+        request.input = input;
         request.callbackContract = callbackContract;
         request.gasLimit = gasLimit;
         request.callbackData = callbackData;
@@ -87,6 +94,13 @@ contract MockAIOracle {
                 }
             }
         }
+    }
+
+    function isFinalized(
+        uint256 requestId
+    ) external view returns (bool) {
+        RequestData storage request = requests[requestId];
+        return request.account != address(0);
     }
 
     function updateGasLimit(uint256 requestId, uint64 gasLimit) external {
