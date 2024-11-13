@@ -93,6 +93,14 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         IPair(pair).swapTokenForNFTs(1, msg.value, msg.sender, true, msg.sender);
     }
 
+    function purchasePresaleNFTs(
+        address pair,
+        uint256 nftNum,
+        uint256 maxExpectedTokenInput,
+        address nftRecipient,
+        bytes32[] calldata whitelistProof //在用merkleTree方案下，仅用做pair白名单的proof
+    ) external payable {}
+
     function swapTokenForNFTs(
         address pair,
         uint256 nftNum,

@@ -74,7 +74,7 @@ contract ORAERC7007Impl is
     error ZeroAddress();
 
     modifier onlySelf() {
-        require(msg.sender == address(this), "Only self can call");
+        // require(msg.sender == address(this), "Only self can call");
         _;
     }
 
@@ -301,6 +301,7 @@ contract ORAERC7007Impl is
     ) internal pure returns (uint64) {
         // todo: 需要结合优化时,
         // todo: 结合prompt.length
+        if (num == 1) return 268_000;
         return uint64(17_737 + (14_766 + 29_756) * num);
     }
 

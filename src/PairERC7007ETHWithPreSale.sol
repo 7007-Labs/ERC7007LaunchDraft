@@ -37,7 +37,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     address public propertyChecker;
     BitMaps.BitMap private saleOutNFTs;
 
-    uint256 public nextUnrevealedTokenId;
+    uint256 public nextUnIssuedTokenId;
     uint256 public nftTotalSupply;
 
     mapping(address => uint256) public presalePurchasePerAddress; //每个地址预售时购买的数量
@@ -66,7 +66,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         uint64 presaleStart;
         uint64 presaleEnd; // 值为0表示不启用预售, 左闭右开区间
         ICurve bondingCurve; //公开发售时使用的bondingCurve
-        uint64 presaleMaxNum; // 预售最大数量
+        uint64 presaleMaxNum; // 预售NFT最大数量
         bytes32 presaleMerkleRoot; //todo: 预售白名单使用merkle，暂定, 白名单为一次性定好还是可以修改
             // 没有定义公开发售时间范围，公开发售的时间一定要在预售后，暂定presaleEnd为公开发售开始时间
             // 预售阶段只有买没有卖
@@ -141,7 +141,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         // todo: 对msg.sender 做白名单检查。
         // todo: 采用有多少卖多少的策略, 没加入类似于minTokenOut的限定逻辑。
 
-        uint256 presaleNum = Math.min(nftNum, salesConfig.presaleMaxNum - nextUnrevealedTokenId);
+        uint256 presaleNum = Math.min(nftNum, salesConfig.presaleMaxNum - nextUnIssuedTokenId);
         // 处理presaleNum为0的情况
         if (presaleNum == 0) revert SoldOut();
 
@@ -153,9 +153,9 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
         uint256[] memory tokenIds = new uint256[](presaleNum);
         for (uint256 i = 0; i < presaleNum; i++) {
-            tokenIds[i] = nextUnrevealedTokenId + i;
+            tokenIds[i] = nextUnIssuedTokenId + i;
         }
-        nextUnrevealedTokenId += presaleNum;
+        nextUnIssuedTokenId += presaleNum;
 
         uint256 aigcAmount = IORAERC7007(nft).estimateRevealFee(presaleNum);
         IORAERC7007(nft).reveal{value: aigcAmount}(tokenIds);
@@ -180,15 +180,15 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         uint256 aigcAmount = 0;
 
         tokenIds = new uint256[](nftNum);
-        uint256 unrevealedNFTNum = Math.min(nftNum, nftTotalSupply - nextUnrevealedTokenId);
+        uint256 unrevealedNFTNum = Math.min(nftNum, nftTotalSupply - nextUnIssuedTokenId);
 
         for (uint256 i = 0; i < unrevealedNFTNum; i++) {
-            tokenIds[i] = nextUnrevealedTokenId + i;
+            tokenIds[i] = nextUnIssuedTokenId + i;
         }
         if (unrevealedNFTNum > 0) {
             aigcAmount = IORAERC7007(nft).estimateRevealFee(unrevealedNFTNum);
 
-            nextUnrevealedTokenId += unrevealedNFTNum;
+            nextUnIssuedTokenId += unrevealedNFTNum;
             assembly {
                 mstore(tokenIds, unrevealedNFTNum)
             }
@@ -353,7 +353,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         // 转nft
         for (uint256 i = 0; i < nftNum; i++) {
             uint256 tokenId = tokenIds[i];
-            if (tokenId >= nextUnrevealedTokenId) revert TokenIdUnrevealed();
+            if (tokenId >= nextUnIssuedTokenId) revert TokenIdUnrevealed();
             saleOutNFTs.set(tokenId);
             IERC721(nft).transferFrom(address(this), nftRecipient, tokenId);
         }
@@ -375,11 +375,11 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         uint256 num
     ) internal view returns (uint256[] memory tokenIds) {
         tokenIds = new uint256[](num);
-        uint256 mod = nextUnrevealedTokenId;
+        uint256 mod = nextUnIssuedTokenId;
         // 随机选择开始查询的tokenId
         uint256 start = block.number % mod;
         uint256 count = 0;
-        for (uint256 i = 0; i < nextUnrevealedTokenId; i++) {
+        for (uint256 i = 0; i < nextUnIssuedTokenId; i++) {
             uint256 tokenId = (start + i) % mod;
             if (saleOutNFTs.get(tokenId)) continue;
             tokenIds[count] = tokenId;
@@ -415,7 +415,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     ) external view returns (uint256 inputAmount, uint256 aigcAmount, uint256 royaltyAmount) {
         uint256 unRevealedNFTNum;
         if (!isPick) {
-            unRevealedNFTNum = Math.min(numItems, nftTotalSupply - nextUnrevealedTokenId);
+            unRevealedNFTNum = Math.min(numItems, nftTotalSupply - nextUnIssuedTokenId);
             aigcAmount = IORAERC7007(nft).estimateRevealFee(unRevealedNFTNum);
         }
         uint256 price = _bondingCurve().getBuyPrice(address(this), numItems);

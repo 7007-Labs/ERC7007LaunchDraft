@@ -24,7 +24,7 @@ contract MockAIOracle {
 
     constructor() {
         modelExists[50] = true;
-        modelFee[50] = 0.01 ether;
+        modelFee[50] = 0.0003 ether;
         gasPrice = tx.gasprice;
     }
 

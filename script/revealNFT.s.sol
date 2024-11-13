@@ -10,7 +10,8 @@ import {IAIOracle} from "../src/interfaces/IAIOracle.sol";
 contract revealNFT is Script {
     function run() public {
         // ORAERC7007Impl nft = ORAERC7007Impl(0x7374A03f3F5B062e50D22025848BEB9d3736c964);
-        ORAERC7007Impl nft = ORAERC7007Impl(0x50A7eA568ae3d97658C1171d6b5ea27d60474Ab4);
+        /*
+        ORAERC7007Impl nft = ORAERC7007Impl(0xC1C2EaeDbC4dDF596D4430e1011B24739d7f5c06);
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
@@ -47,5 +48,6 @@ contract revealNFT is Script {
         console2.log("fee: ", num, fee);
         nft.reveal{value: fee}(tokenIds3);
         vm.stopBroadcast();
+        */
     }
 }
