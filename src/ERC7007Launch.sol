@@ -16,11 +16,14 @@ import {IORAERC7007} from "./interfaces/IORAERC7007.sol";
 import {Whitelist} from "./libraries/Whitelist.sol";
 
 contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgradeable, PausableUpgradeable {
-    uint256 public constant NFT_TOTAL_SUPPLY = 7007;
+    uint64 public constant NFT_TOTAL_SUPPLY = 7007;
+    uint64 public constant MAX_INIT_BUY_NUM = 10;
     address public immutable nftCollectionFactory;
     address public immutable pairFactory;
 
     bool public isEnableWhitelist;
+
+    error InvalidInitialBuyNum();
 
     constructor(address _nftCollectionFactory, address _pairFactory) {
         nftCollectionFactory = _nftCollectionFactory;
@@ -45,10 +48,8 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     }
 
     struct LaunchParams {
-        string name;
-        string symbol;
-        string basePrompt;
-        bool nsfw;
+        bytes metadataInitializer;
+        string prompt;
         address provider;
         bytes providerParams;
         address bondingCurve;
@@ -63,27 +64,20 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     function launch(
         LaunchParams calldata params
     ) external payable whenNotPaused {
-        // check initialBuyNum
-        require(params.initialBuyNum > 0);
+        if (params.initialBuyNum == 0 || params.initialBuyNum > MAX_INIT_BUY_NUM) revert InvalidInitialBuyNum();
         _checkWhitelist(params.whitelistProof);
+
         address collection = INFTCollectionFactory(nftCollectionFactory).createNFTCollection(
-            params.name,
-            params.symbol,
-            params.basePrompt,
-            msg.sender,
-            params.nsfw,
-            params.provider,
-            params.providerParams
+            msg.sender, params.prompt, params.metadataInitializer, params.provider, params.providerParams
         );
 
         bytes memory data = abi.encodePacked(NFT_TOTAL_SUPPLY);
-        address pair = IPairFactory(pairFactory).createPairERC7007ETH(
-            msg.sender, collection, params.bondingCurve, PairType.LAUNCH, address(0), data
-        );
+        address pair =
+            IPairFactory(pairFactory).createPairERC7007ETH(msg.sender, collection, PairType.LAUNCH, address(0), data);
 
         IORAERC7007(collection).activate(NFT_TOTAL_SUPPLY, pair, pair);
 
-        IPair(pair).swapTokenForNFTs(1, msg.value, msg.sender, true, msg.sender);
+        IPair(pair).swapTokenForNFTs(params.initialBuyNum, msg.value, msg.sender, true, msg.sender);
     }
 
     function purchasePresaleNFTs(
@@ -92,10 +86,12 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         uint256 maxExpectedTokenInput,
         address nftRecipient,
         bytes32[] calldata whitelistProof,
-        bytes32[] calldata presaleProof
+        bytes32[] calldata presaleMerkleProof
     ) external payable whenNotPaused returns (uint256, uint256) {
         _checkWhitelist(whitelistProof);
-        return (0, 0);
+        return IPair(pair).purchasePresale(
+            nftNum, maxExpectedTokenInput, nftRecipient, presaleMerkleProof, true, msg.sender
+        );
     }
 
     function swapTokenForNFTs(

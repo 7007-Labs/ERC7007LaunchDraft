@@ -26,6 +26,15 @@ interface IPair {
         uint256 numItems
     ) external view returns (uint256 outputAmount, uint256 royaltyAmount);
 
+    function purchasePresale(
+        uint256 nftNum,
+        uint256 maxExpectedTokenInput,
+        address nftRecipient,
+        bytes32[] calldata merkleProof,
+        bool isRouter,
+        address routerCaller
+    ) external payable returns (uint256 presaleNum, uint256 totalAmount);
+
     function swapTokenForNFTs(
         uint256 nftNum,
         uint256 maxExpectedTokenInput,

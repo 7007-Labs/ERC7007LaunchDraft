@@ -25,7 +25,9 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
     event AllowlistStatusUpdate(address indexed addr, bool isAllowed);
     event NewPair(address indexed pair, address nft);
 
+    error UnauthorizedCaller();
     error WrongPairType();
+    error BondingCurveNotAllowed();
 
     function initialize(address _owner, address _erc7007ETHBeacon) external initializer {
         __Ownable_init(_owner);
@@ -33,23 +35,24 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
     }
 
     modifier onlyAllowlist() {
-        require(allowlist[msg.sender], "Only allowlist");
+        if (!allowlist[msg.sender]) revert UnauthorizedCaller();
         _;
     }
 
     function createPairERC7007ETH(
         address _owner,
         address _nft,
-        address _bondingCurve,
         PairType _pairType,
         address _propertyChecker,
-        bytes calldata extraParams
+        bytes calldata params
     ) external payable onlyAllowlist returns (address pair) {
-        require(bondingCurveAllowed[_bondingCurve] == true);
         if (_pairType == PairType.LAUNCH) {
             pair = _deployPair(_pairType, _nft);
             (uint256 _nftTotalSupply, PairERC7007ETH.SalesConfig memory _salesConfig) =
-                abi.decode(extraParams, (uint256, PairERC7007ETH.SalesConfig));
+                abi.decode(params, (uint256, PairERC7007ETH.SalesConfig));
+
+            if (!bondingCurveAllowed[address(_salesConfig.bondingCurve)]) revert BondingCurveNotAllowed();
+
             PairERC7007ETH(pair).initialize(_owner, _nft, _propertyChecker, _nftTotalSupply, _salesConfig);
             emit NewPair(pair, _nft);
         } else {

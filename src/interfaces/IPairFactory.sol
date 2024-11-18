@@ -7,10 +7,9 @@ interface IPairFactory {
     function createPairERC7007ETH(
         address _owner,
         address _nft,
-        address _bondingCurve,
         PairType _pairType,
         address _propertyChecker,
-        bytes calldata extraParams // 不同pairType可能会用到
+        bytes calldata params // 不同pairType可能会用到
     ) external payable returns (address);
 
     function isRouterAllowed(

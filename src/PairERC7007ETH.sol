@@ -262,7 +262,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
             revert OutputTooSmall();
         }
         // 转nft
-        _takeNFTsFromSender(nft, tokenIds, isRouter, routerCaller);
+        _takeNFTsFromSender(tokenIds, isRouter, routerCaller);
 
         // 转token
         tokenRecipient.sendValue(outputAmount);
@@ -324,16 +324,6 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         emit SwapNFTOutPair(totalAmount, tokenIds);
     }
 
-    function _calculateFees(
-        uint256 amount
-    ) internal returns (Payment memory payment) {
-        (address payable[] memory feeRecipients, uint256[] memory feeAmounts, uint256 totalFee) =
-            IFeeManager(feeManager).calculateFees(address(this), amount);
-        payment.recipients = feeRecipients;
-        payment.amounts = feeAmounts;
-        payment.total = totalFee;
-    }
-
     function _refundTokenToSender(
         uint256 inputAmount
     ) internal {
@@ -381,12 +371,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         }
     }
 
-    function _takeNFTsFromSender(
-        address _nft,
-        uint256[] calldata tokenIds,
-        bool isRouter,
-        address routerCaller
-    ) internal {
+    function _takeNFTsFromSender(uint256[] calldata tokenIds, bool isRouter, address routerCaller) internal {
         address _from = isRouter ? routerCaller : msg.sender;
         for (uint256 i = 0; i < tokenIds.length; i++) {
             saleOutNFTs.setTo(tokenIds[i], false);

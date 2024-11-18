@@ -16,6 +16,10 @@ contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUp
     mapping(address => bool) public providerAllowed;
     mapping(uint256 => bool) public oraModelAllowed;
 
+    error UnauthorizedCaller();
+    error ProviderNotAllowed();
+    error ORAModelNotAllowed();
+
     event ProviderStatusUpdate(address indexed provider, bool isAllowed);
     event ORAModelStatusUpdate(uint256 indexed modelId, bool isAllowed);
     event AllowlistStatusUpdate(address indexed addr, bool isAllowed);
@@ -26,25 +30,23 @@ contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUp
     }
 
     modifier onlyAllowlist() {
-        require(allowlist[msg.sender], "Only allowlist");
+        if (!allowlist[msg.sender]) revert UnauthorizedCaller();
         _;
     }
 
     function createNFTCollection(
-        string calldata name,
-        string calldata symbol,
-        string calldata prompt,
         address _owner,
-        bool nsfw,
+        string calldata prompt,
+        bytes calldata metadataInitializer,
         address provider,
         bytes calldata providerParams
     ) external onlyAllowlist returns (address collection) {
-        require(providerAllowed[provider], "provider not allowed");
+        if (!providerAllowed[provider]) revert ProviderNotAllowed();
         uint256 modelId = abi.decode(providerParams, (uint256));
-        require(oraModelAllowed[modelId], "ora modelId not allowed");
+        if (!oraModelAllowed[modelId]) revert ORAModelNotAllowed();
 
         collection = _deployNFTCollection(provider, modelId, prompt);
-        ORAERC7007Impl(collection).initialize(name, symbol, prompt, _owner, nsfw, modelId);
+        ORAERC7007Impl(collection).initialize(metadataInitializer, _owner, modelId);
     }
 
     function _deployNFTCollection(
