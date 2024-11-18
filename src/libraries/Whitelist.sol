@@ -14,6 +14,6 @@ abstract contract Whitelist {
 
     function verifyWhitelistAddress(address addr, bytes32[] calldata proof) internal view returns (bool) {
         bytes32 leaf = keccak256(abi.encodePacked(addr));
-        return MerkleProof.verify(proof, whitelistMerkleRoot, leaf);
+        return MerkleProof.verifyCalldata(proof, whitelistMerkleRoot, leaf);
     }
 }

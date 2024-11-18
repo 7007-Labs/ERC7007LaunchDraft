@@ -15,7 +15,6 @@ import {PairERC7007ETH} from "./PairERC7007ETH.sol";
 
 contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     mapping(address => bool) public bondingCurveAllowed;
-    mapping(address pair => bool) public pairExists;
     mapping(address router => bool) public isRouterAllowed;
     mapping(address => bool) public allowlist;
 
@@ -49,19 +48,13 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
         require(bondingCurveAllowed[_bondingCurve] == true);
         if (_pairType == PairType.LAUNCH) {
             pair = _deployPair(_pairType, _nft);
-            uint256 _nftTotalSupply = abi.decode(extraParams, (uint256));
-            PairERC7007ETH(pair).initialize(_owner, _nft, ICurve(_bondingCurve), _propertyChecker, _nftTotalSupply);
-            pairExists[pair] = true;
+            (uint256 _nftTotalSupply, PairERC7007ETH.SalesConfig memory _salesConfig) =
+                abi.decode(extraParams, (uint256, PairERC7007ETH.SalesConfig));
+            PairERC7007ETH(pair).initialize(_owner, _nft, _propertyChecker, _nftTotalSupply, _salesConfig);
             emit NewPair(pair, _nft);
         } else {
             revert WrongPairType();
         }
-    }
-
-    function isValidPair(
-        address pair
-    ) external view returns (bool) {
-        return pairExists[pair];
     }
 
     function _deployPair(PairType _pairType, address _nft) internal returns (address) {

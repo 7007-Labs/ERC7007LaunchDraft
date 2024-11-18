@@ -95,7 +95,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
     function calculateFees(
         address pair,
         uint256 amount
-    ) external view returns (address payable[] memory recipients, uint256[] memory amounts) {
+    ) external view returns (address payable[] memory recipients, uint256[] memory amounts, uint256 totalAmount) {
         PairFeeConfig storage config = pairConfigs[pair];
         if (config.feeRecipient == address(0)) revert PairNotRegistered();
 
@@ -110,8 +110,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
 
         amounts[0] = pairFee;
         amounts[1] = protocolFee;
-
-        return (recipients, amounts);
+        totalAmount = pairFee + protocolFee;
     }
 
     /**

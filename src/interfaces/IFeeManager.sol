@@ -22,5 +22,5 @@ interface IFeeManager {
     function calculateFees(
         address pair,
         uint256 amount
-    ) external view returns (address payable[] memory recipients, uint256[] memory amounts);
+    ) external view returns (address payable[] memory recipients, uint256[] memory amounts, uint256 totalAmount);
 }

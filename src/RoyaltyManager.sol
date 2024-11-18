@@ -37,14 +37,14 @@ contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, U
      * @return recipients Array of royalty recipients
      * @return amounts Array of royalty amounts
      */
-    function calculateRoyaltyFee(
+    function calculateRoyalty(
         address pair,
         uint256 tokenId,
         uint256 price
-    ) external view returns (address payable[] memory recipients, uint256[] memory amounts) {
+    ) external view returns (address payable[] memory recipients, uint256[] memory amounts, uint256 royaltyAmount) {
         // If royalties are not enabled for this pair, return empty arrays (zero royalty)
         if (!pairRoyaltyAllowed[pair]) {
-            return (new address payable[](0), new uint256[](0));
+            return (new address payable[](0), new uint256[](0), 0);
         }
 
         address nft = IPair(pair).nft();
@@ -54,7 +54,7 @@ contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, U
 
         // If no valid royalty, return empty arrays
         if (recipient == address(0) || amount == 0) {
-            return (new address payable[](0), new uint256[](0));
+            return (new address payable[](0), new uint256[](0), 0);
         }
 
         // Return royalty information
@@ -62,6 +62,7 @@ contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, U
         amounts = new uint256[](1);
         recipients[0] = payable(recipient);
         amounts[0] = amount;
+        royaltyAmount = amount;
     }
 
     /**

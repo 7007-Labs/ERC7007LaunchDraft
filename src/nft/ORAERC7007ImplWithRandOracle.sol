@@ -10,6 +10,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
+import {LibBytes} from "../libraries/LibBytes.sol";
 import {IAIOracle} from "../interfaces/IAIOracle.sol";
 import {IRandOracle} from "../interfaces/IRandOracle.sol";
 import {AIOracleCallbackReceiver} from "../libraries/AIOracleCallbackReceiver.sol";
@@ -17,7 +18,7 @@ import {RandOracleCallbackReceiver} from "../libraries/RandOracleCallbackReceive
 import {IORAERC7007} from "../interfaces/IORAERC7007.sol";
 import {IERC7572} from "../interfaces/IERC7572.sol";
 import {NFTMetadataRenderer} from "../utils/NFTMetadataRenderer.sol";
-import {ORAUtils} from "../utils/ORAUtils.sol";
+// import {ORAUtils} from "../utils/ORAUtils.sol";
 
 contract ORAERC7007Impl is
     ERC721RoyaltyUpgradeable,
@@ -30,6 +31,7 @@ contract ORAERC7007Impl is
     RandOracleCallbackReceiver
 {
     using BitMaps for BitMaps.BitMap;
+    using LibBytes for LibBytes.BytesStorage;
 
     uint256 public constant RAND_ORACLE_MODEL_ID = 0;
     string public constant DEFAULT_IMAGE_URL = "ipfs://xxx"; // todo: 需要给出默认的图片
@@ -47,12 +49,6 @@ contract ORAERC7007Impl is
     address private defaultNFTOwner;
     BitMaps.BitMap private _firstOwnershipChange;
 
-    struct RevealRequest {
-        uint256[] tokenIds; // // todo: 考虑优化方案: tokenid使用uint16 (最大65535), 将tokenid压缩成bytes
-        uint256 aiOracleRequestId;
-        uint256 randOracleRequestId;
-    }
-
     /// @notice prompt => tokenId
     mapping(bytes prompt => uint256) public promptToTokenId;
 
@@ -60,21 +56,26 @@ contract ORAERC7007Impl is
     mapping(uint256 tokenId => uint256) public seedOf;
 
     /// @notice tokenId => aigcData
-    mapping(uint256 tokenId => bytes) public aigcDataOf;
+    mapping(uint256 tokenId => LibBytes.BytesStorage) public aigcDataOf;
 
     /// @notice tokenId => requestId
     mapping(uint256 tokenId => bytes32) public tokenIdToRequestId;
 
-    /// @notice requestId => RevealRequest
-    mapping(bytes32 requestId => RevealRequest) public requests;
+    /// @notice requestId => tokenIds[]
+    mapping(bytes32 requestId => uint256[]) public requestIdToTokenIds;
 
-    event RevealRequested(bytes32 indexed requestId, uint256[] tokenIds);
+    /// @notice tokenId => aiOracleRequestId
+    mapping(uint256 tokenId => uint256) public tokenIdToAiOracleRequestId;
 
-    error InsufficientPayment();
+    event NewRevealRequest(bytes32 indexed requestId, uint256 randOracleRequestId);
+    event NotRequestAIOracle(bytes32 indexed requestId);
+
+    error InsufficientRevealFee();
     error ZeroAddress();
+    error InvalidRequestId();
 
     modifier onlySelf() {
-        // require(msg.sender == address(this), "Only self can call");
+        require(msg.sender == address(this), "Only self can call");
         _;
     }
 
@@ -105,7 +106,9 @@ contract ORAERC7007Impl is
 
     function activate(uint256 _totalSupply, address _defaultNFTOwner, address _operator) external {
         require(_totalSupply > 0);
-        if (_defaultNFTOwner == address(0) || _operator == address(0)) revert ZeroAddress();
+        if (_defaultNFTOwner == address(0)) revert ZeroAddress();
+        if (_operator == address(0)) revert ZeroAddress();
+
         require(totalSupply == 0, "Already activated");
 
         totalSupply = _totalSupply;
@@ -123,29 +126,30 @@ contract ORAERC7007Impl is
         require(size > 0, "TokenIds can not be empty");
 
         bytes32 requestId = keccak256(abi.encodePacked(tokenIds));
-        RevealRequest storage request = requests[requestId];
         // todo: randOracle.contributeEntropy(bytes32) 考虑是否加这个
-        uint64 gasLimit = 7500;
-        // uint64 gasLimit = _getRandOracleGasLimit(size);
-        uint256 fee = _estimateRandOracleFee(gasLimit);
-        uint256 aigcFee = _estimateAIOracleFee(size);
-        if (msg.value < fee + aigcFee) revert InsufficientPayment();
+        uint64 randOracleGasLimit = _getRandOracleCallbackGasLimit(size);
+        uint64 aiOracleGasLimit = _getAIOracleCallbackGasLimit(size);
+        uint256 randOracleFee = _estimateRandOracleFee(randOracleGasLimit);
+        uint256 aiOracleFee = _estimateAIOracleFee(size, aiOracleGasLimit);
+        if (msg.value < randOracleFee + randOracleFee) revert InsufficientRevealFee();
 
-        uint256 randOracleRequestId = randOracle.async{value: fee}(
+        uint256 randOracleRequestId = randOracle.async{value: randOracleFee}(
             RAND_ORACLE_MODEL_ID,
-            abi.encode(requestId), // requestEntropy
+            abi.encodePacked(requestId), // requestEntropy
             address(this),
-            gasLimit,
+            randOracleGasLimit,
             abi.encode(requestId)
         );
-        request.tokenIds = tokenIds;
-        request.randOracleRequestId = randOracleRequestId; // todo: 使用emit event
+        requestIdToTokenIds[requestId] = tokenIds;
+        emit NewRevealRequest(requestId, randOracleRequestId);
     }
 
     function estimateRevealFee(
         uint256 num
     ) public view returns (uint256) {
-        return _estimateAIOracleFee(num) + _estimateRandOracleFee(uint64(7500));
+        uint64 randOracleGasLimit = _getRandOracleCallbackGasLimit(num);
+        uint64 aiOracleGasLimit = _getAIOracleCallbackGasLimit(num);
+        return _estimateAIOracleFee(num, aiOracleGasLimit) + _estimateRandOracleFee(randOracleGasLimit);
     }
 
     function addAigcData(
@@ -153,13 +157,12 @@ contract ORAERC7007Impl is
         bytes memory prompt,
         bytes memory aigcData,
         bytes memory proof
-    ) public onlySelf {
-        require(aigcDataOf[tokenId].length == 0, "AigcData exists");
+    ) external onlySelf {
+        require(aigcDataOf[tokenId].isEmpty(), "AigcData exists");
 
         promptToTokenId[prompt] = tokenId;
-        aigcDataOf[tokenId] = aigcData;
+        aigcDataOf[tokenId].set(aigcData);
         emit AigcData(tokenId, prompt, aigcData, proof);
-
         emit MetadataUpdate(tokenId);
     }
 
@@ -169,87 +172,130 @@ contract ORAERC7007Impl is
         bytes calldata /* proof */
     ) external view override returns (bool success) {
         uint256 tokenId = promptToTokenId[prompt];
-        bytes32 requestId = tokenIdToRequestId[tokenId];
-        RevealRequest storage request = requests[requestId];
-        bytes storage currentAigcData = aigcDataOf[tokenId];
-        return aiOracle.isFinalized(request.aiOracleRequestId) && keccak256(aigcData) == keccak256(currentAigcData);
+        uint256 aiOracleRequestId = tokenIdToAiOracleRequestId[tokenId];
+        bytes memory currentAigcData = aigcDataOf[tokenId].get();
+        return aiOracle.isFinalized(aiOracleRequestId) && keccak256(aigcData) == keccak256(currentAigcData);
     }
 
-    function update(bytes memory prompt, bytes memory aigcData) public onlySelf {
+    function update(bytes memory prompt, bytes memory aigcData) external onlySelf {
         uint256 tokenId = promptToTokenId[prompt];
-        aigcDataOf[tokenId] = aigcData;
+        aigcDataOf[tokenId].set(aigcData);
 
         emit Update(tokenId, prompt, aigcData);
         emit MetadataUpdate(tokenId);
     }
 
-    // randOracle tx.value
     function awaitRandOracle(
         uint256, /* randOracleRequestId */
         uint256 output,
         bytes calldata callbackData
     ) external override onlyRandOracleCallback {
         bytes32 requestId = abi.decode(callbackData, (bytes32));
-        RevealRequest storage request = requests[requestId];
-        uint256 size = request.tokenIds.length;
-        require(size != 0, "wrong requestId");
+        uint256[] memory tokenIds = requestIdToTokenIds[requestId];
+        uint256 size = tokenIds.length;
+        if (size == 0) revert InvalidRequestId();
 
-        bytes memory batchPrompt = "[";
+        uint256[] memory seeds = new uint256[](size);
         for (uint256 i = 0; i < size; i++) {
-            if (i > 0) {
-                batchPrompt = bytes.concat(batchPrompt, ",");
-            }
-            uint256 seed = output ^ i;
-            if (seed == 0) {
-                seed = block.timestamp + i;
-            }
-            bytes memory prompt = ORAUtils.buildPrompt(basePrompt, seed);
-            seedOf[request.tokenIds[i]] = seed;
-            batchPrompt = bytes.concat(batchPrompt, prompt);
+            uint256 seed = output ^ uint256(keccak256(abi.encodePacked(tokenIds[i])));
+            seeds[i] = seed;
+            seedOf[tokenIds[i]] = seed;
         }
-        batchPrompt = bytes.concat(batchPrompt, "]");
+        uint64 aiOracleGasLimit = _getAIOracleCallbackGasLimit(size);
+        uint256 aiOracleFee = _estimateAIOracleFee(size, aiOracleGasLimit);
+        if (address(this).balance < aiOracleFee) {
+            emit NotRequestAIOracle(requestId);
+            return;
+        }
+        bytes memory batchPrompt = _buildBatchPrompt(seeds);
 
-        // todo: 如何准确计费
-        // msg.value => nft collection => randOracle{value: randOracleFee}
-        // 经过几个区块后, randOracle => nftCollection => aiOrancle{value: aiOracleFee} 这一步可能会失败, nftCollection.balance 不够 aiOracleFee
-        // transferFrom(nft, aiOracle)
-        // internal tx
-        // vrf protocol fee,  callback fee = callback gas limit * gasPrice
-        uint256 aiOracleRequestId = aiOracle.requestBatchInference{value: _estimateAIOracleFee(size)}(
+        _requestAIOracle(size, batchPrompt, aiOracleFee, aiOracleGasLimit, callbackData);
+    }
+
+    function _requestAIOracle(
+        uint256 size,
+        bytes memory batchPrompt,
+        uint256 fee,
+        uint64 gasLimit,
+        bytes calldata callbackData
+    ) internal returns (uint256 aiOracleRequestId) {
+        aiOracleRequestId = aiOracle.requestBatchInference{value: fee}(
             size,
             modelId,
-            bytes(batchPrompt),
+            batchPrompt,
             address(this),
-            getGasLimit(size),
+            gasLimit,
             callbackData,
             IAIOracle.DA.Calldata,
             IAIOracle.DA.Calldata
         );
+    }
 
-        request.aiOracleRequestId = aiOracleRequestId;
+    function _buildBatchPrompt(
+        uint256[] memory seeds
+    ) internal view returns (bytes memory batchPrompt) {
+        string memory _basePrompt = basePrompt;
+        batchPrompt = "[";
+        for (uint256 i = 0; i < seeds.length; i++) {
+            if (i > 0) {
+                batchPrompt = bytes.concat(batchPrompt, ",");
+            }
+            bytes memory prompt = _buildPrompt(_basePrompt, seeds[i]);
+            batchPrompt = bytes.concat(batchPrompt, prompt);
+        }
+        batchPrompt = bytes.concat(batchPrompt, "]");
+    }
+
+    function _buildPrompt(string memory prompt, uint256 seed) internal pure returns (bytes memory) {
+        return abi.encodePacked('{"prompt":"', prompt, '","seed":', Strings.toString(seed), "}");
+    }
+
+    function _decodeOutput(
+        bytes calldata data
+    ) internal pure returns (bytes[] memory) {
+        require(data.length >= 4, "Data too short");
+        uint32 count = uint32(bytes4(data[:4]));
+        bytes[] memory cids = new bytes[](count);
+        uint256 offset = 4;
+        for (uint32 i = 0; i < count; i++) {
+            require(data.length >= offset + 4, "Invalid data length");
+            uint32 cidLength = uint32(bytes4(data[offset:offset + 4]));
+            offset += 4;
+            require(data.length >= offset + cidLength, "Invalid CID length");
+
+            bytes memory cidBytes = new bytes(cidLength);
+            assembly {
+                calldatacopy(add(cidBytes, 32), add(data.offset, offset), cidLength)
+            }
+            cids[i] = cidBytes;
+            offset += cidLength;
+        }
+        return cids;
     }
 
     function aiOracleCallback(
-        uint256, /* aiOracleRequestId */
+        uint256 aiOracleRequestId,
         bytes calldata output,
         bytes calldata callbackData
     ) external override onlyAIOracleCallback {
         bytes32 requestId = abi.decode(callbackData, (bytes32));
-        RevealRequest storage request = requests[requestId];
-        uint256 size = request.tokenIds.length;
+        uint256[] memory tokenIds = requestIdToTokenIds[requestId];
+        uint256 size = tokenIds.length;
         require(size != 0, "wrong requestId");
 
-        bytes[] memory cids = ORAUtils.decodeCIDs(output);
-        require(size == cids.length);
+        bytes[] memory cids = _decodeOutput(output);
+        require(size == cids.length, "length mismatch");
+
+        string memory _basePrompt = basePrompt;
 
         for (uint256 i = 0; i < size; i++) {
-            uint256 tokenId = request.tokenIds[i];
-            tokenIdToRequestId[tokenId] = requestId;
-            bytes memory prompt = ORAUtils.buildPrompt(basePrompt, seedOf[tokenId]);
-            if (aigcDataOf[tokenId].length == 0) {
-                addAigcData(tokenId, prompt, cids[i], bytes(""));
+            uint256 tokenId = tokenIds[i];
+            tokenIdToAiOracleRequestId[tokenIds[i]] = aiOracleRequestId;
+            bytes memory prompt = _buildPrompt(_basePrompt, seedOf[tokenId]);
+            if (aigcDataOf[tokenId].isEmpty()) {
+                this.addAigcData(tokenId, prompt, cids[i], bytes(""));
             } else {
-                update(prompt, cids[i]);
+                this.update(prompt, cids[i]);
             }
         }
     }
@@ -258,16 +304,16 @@ contract ORAERC7007Impl is
         uint256 tokenId
     ) public view override returns (string memory) {
         string memory imageUrl;
-        if (aigcDataOf[tokenId].length > 0) {
-            imageUrl = string.concat("ipfs://", string(aigcDataOf[tokenId]));
-        } else {
+        if (aigcDataOf[tokenId].isEmpty()) {
             imageUrl = DEFAULT_IMAGE_URL;
+        } else {
+            imageUrl = string.concat("ipfs://", string(aigcDataOf[tokenId].get()));
         }
         string memory mediaData = NFTMetadataRenderer.tokenMediaData(imageUrl, "");
         string memory aigcInfo = NFTMetadataRenderer.tokenAIGCInfo(
             basePrompt,
             AIGC_TYPE,
-            string(aigcDataOf[tokenId]),
+            string(aigcDataOf[tokenId].get()),
             PROOF_TYPE,
             Strings.toHexString(address(aiOracle)),
             Strings.toString(modelId)
@@ -296,19 +342,27 @@ contract ORAERC7007Impl is
         return from;
     }
 
-    function getGasLimit(
+    function _getAIOracleCallbackGasLimit(
         uint256 num
-    ) internal pure returns (uint64) {
-        // todo: 需要结合优化时,
-        // todo: 结合prompt.length
-        if (num == 1) return 268_000;
-        return uint64(17_737 + (14_766 + 29_756) * num);
+    ) internal view returns (uint64) {
+        uint256 promptLength = bytes(basePrompt).length;
+        uint256 numTimesPromptLen = num * promptLength;
+        uint256 baseGas = num * 105_205 + numTimesPromptLen + promptLength / 32 * 2100 + 14_300;
+        uint256 wordSize = (num * 191 * 32 + numTimesPromptLen * 6) / 32;
+        uint256 memoryGas = (wordSize * wordSize) / 512 + wordSize * 3;
+        uint256 totalGas = baseGas + memoryGas;
+        require(totalGas <= type(uint64).max, "Gas limit overflow");
+        return uint64(totalGas);
     }
 
-    function _estimateAIOracleFee(
+    function _getRandOracleCallbackGasLimit(
         uint256 num
-    ) internal view returns (uint256) {
-        return aiOracle.estimateFeeBatch(modelId, getGasLimit(num), num);
+    ) internal view returns (uint64) {
+        return uint64(7007);
+    }
+
+    function _estimateAIOracleFee(uint256 num, uint64 gasLimit) internal view returns (uint256) {
+        return aiOracle.estimateFeeBatch(modelId, gasLimit, num);
     }
 
     function _estimateRandOracleFee(

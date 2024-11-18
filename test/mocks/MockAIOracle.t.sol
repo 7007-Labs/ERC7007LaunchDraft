@@ -108,6 +108,10 @@ contract MockAIOracle {
         request.gasLimit = gasLimit;
     }
 
+    function latestRequestId() external view returns (uint256) {
+        return seq - 1;
+    }
+
     function makeOutput(
         uint256 num
     ) public pure returns (bytes memory) {
