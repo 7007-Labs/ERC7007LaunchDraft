@@ -8,12 +8,15 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Pau
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {PairType} from "./enums/PairType.sol";
+import {Whitelist} from "./libraries/Whitelist.sol";
+import {OracleGasEstimator} from "./libraries/OracleGasEstimator.sol";
 import {INFTCollectionFactory} from "./interfaces/INFTCollectionFactory.sol";
 import {IPairFactory} from "./interfaces/IPairFactory.sol";
 import {ICurve} from "./interfaces/ICurve.sol";
 import {IPair} from "./interfaces/IPair.sol";
+import {IRandOracle} from "./interfaces/IRandOracle.sol";
+import {IAIOracle} from "./interfaces/IAIOracle.sol";
 import {IORAERC7007} from "./interfaces/IORAERC7007.sol";
-import {Whitelist} from "./libraries/Whitelist.sol";
 
 /**
  * @title ERC7007Launch
@@ -48,8 +51,8 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         bytes32 presaleMerkleRoot;
     }
 
-    uint64 public constant NFT_TOTAL_SUPPLY = 7007;
-    uint64 public constant MAX_INIT_BUY_NUM = 10;
+    uint64 public constant NFT_TOTAL_SUPPLY = 7007; // todo: 此处逻辑待业务确定，是否要统一限制还是使用最大限制
+    uint64 public constant MAX_INIT_BUY_NUM = 10; // todo: 待确认的
     uint32 public constant MAX_PRESALE_PER_ADDRESS = 1;
 
     address public immutable nftCollectionFactory;
@@ -125,7 +128,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         IORAERC7007(collection).activate(NFT_TOTAL_SUPPLY, pair, pair);
 
         // Perform initial NFT purchase
-        IPair(pair).swapTokenForNFTs(params.initialBuyNum, msg.value, msg.sender, true, msg.sender);
+        IPair(pair).swapTokenForNFTs{value: msg.value}(params.initialBuyNum, msg.value, msg.sender, true, msg.sender);
     }
 
     /**
@@ -148,7 +151,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         bytes32[] calldata presaleMerkleProof
     ) external payable whenNotPaused returns (uint256, uint256) {
         _checkWhitelist(whitelistProof);
-        return IPair(pair).purchasePresale(
+        return IPair(pair).purchasePresale{value: msg.value}(
             nftNum, maxExpectedTokenInput, nftRecipient, presaleMerkleProof, true, msg.sender
         );
     }
@@ -171,7 +174,9 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         bytes32[] calldata whitelistProof
     ) external payable whenNotPaused returns (uint256, uint256) {
         _checkWhitelist(whitelistProof);
-        return IPair(pair).swapTokenForNFTs(nftNum, maxExpectedTokenInput, nftRecipient, true, msg.sender);
+        return IPair(pair).swapTokenForNFTs{value: msg.value}(
+            nftNum, maxExpectedTokenInput, nftRecipient, true, msg.sender
+        );
     }
 
     /**
@@ -196,7 +201,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         bytes32[] calldata whitelistProof
     ) external payable returns (uint256, uint256) {
         _checkWhitelist(whitelistProof);
-        return IPair(pair).swapTokenForSpecificNFTs(
+        return IPair(pair).swapTokenForSpecificNFTs{value: msg.value}(
             tokenIds, maxNFTNum, minNFTNum, maxExpectedTokenInput, nftRecipient, true, msg.sender
         );
     }
@@ -235,7 +240,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     /**
      * @dev Disables whitelist functionality
      */
-    function disableWhitelist() public onlyOwner {
+    function disableWhitelist() external onlyOwner {
         isEnableWhitelist = false;
         emit WhitelistStateChanged(false);
     }
@@ -243,7 +248,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     /**
      * @dev Enables whitelist functionality
      */
-    function enableWhitelist() public onlyOwner {
+    function enableWhitelist() external onlyOwner {
         isEnableWhitelist = true;
         emit WhitelistStateChanged(true);
     }
@@ -251,15 +256,47 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     /**
      * @dev Pauses all contract operations
      */
-    function pause() public onlyOwner {
+    function pause() external onlyOwner {
         _pause();
     }
 
     /**
      * @dev Unpauses all contract operations
      */
-    function unpause() public onlyOwner {
+    function unpause() external onlyOwner {
         _unpause();
+    }
+
+    /**
+     * @notice Calculates the total fee required for launching an NFT collection
+     * @dev The total fee consists of:
+     *      1. Initial NFT purchase price (initialBuyNum * initialPrice)
+     *      2. Combined fee (1% fee + 1% protocol fee = 2% total)
+     *      3. Random oracle fee based on gas estimation for callback
+     *      4. AI oracle fee based on gas estimation and model parameters
+     * @param params LaunchParams struct containing launch configuration
+     * @param aiOracle Address of the AI oracle contract
+     * @param randOracle Address of the random oracle contract
+     * @return Total fee in wei required for launching the collection
+     */
+    function getLaunchFee(
+        LaunchParams calldata params,
+        address aiOracle,
+        address randOracle
+    ) external view returns (uint256) {
+        uint256 price = params.initialBuyNum * params.initialPrice;
+        uint256 fee = price * 200 / 10_000;
+
+        uint256 promptLength = bytes(params.prompt).length;
+
+        uint64 randOracleGaslimit = OracleGasEstimator.getRandOracleCallbackGasLimit(params.initialBuyNum, promptLength);
+        uint256 randOracleFee = IRandOracle(randOracle).estimateFee(0, "", address(this), randOracleGaslimit, "");
+
+        uint64 aiOracleGaslimit = OracleGasEstimator.getAIOracleCallbackGasLimit(params.initialBuyNum, promptLength);
+        uint256 modelId = abi.decode(params.providerParams, (uint256));
+        uint256 aiOracleFee = IAIOracle(aiOracle).estimateFeeBatch(modelId, aiOracleGaslimit, params.initialBuyNum);
+
+        return price + fee + randOracleFee + aiOracleFee;
     }
 
     /**

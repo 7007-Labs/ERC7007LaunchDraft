@@ -10,6 +10,7 @@ import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 import {LibBytes} from "../libraries/LibBytes.sol";
+import {OracleGasEstimator} from "../libraries/OracleGasEstimator.sol";
 import {IAIOracle} from "../interfaces/IAIOracle.sol";
 import {IRandOracle} from "../interfaces/IRandOracle.sol";
 import {AIOracleCallbackReceiver} from "../libraries/AIOracleCallbackReceiver.sol";
@@ -78,7 +79,6 @@ contract ORAERC7007Impl is
     error EmptyArray();
     error InsufficientBalance();
     error RequestAlreadyProcessed();
-    error GaslimitOverflow();
     error InvalidTotalSupply();
     error InvalidDataLength();
     error InvalidCIDLength();
@@ -168,8 +168,9 @@ contract ORAERC7007Impl is
 
         bytes32 requestId = keccak256(abi.encodePacked(tokenIds));
 
-        uint64 randOracleGasLimit = _getRandOracleCallbackGasLimit(size);
-        uint64 aiOracleGasLimit = _getAIOracleCallbackGasLimit(size);
+        uint256 promptLength = bytes(basePrompt).length;
+        uint64 randOracleGasLimit = OracleGasEstimator.getRandOracleCallbackGasLimit(size, promptLength);
+        uint64 aiOracleGasLimit = OracleGasEstimator.getAIOracleCallbackGasLimit(size, promptLength);
         uint256 randOracleFee = _estimateRandOracleFee(randOracleGasLimit);
         uint256 aiOracleFee = _estimateAIOracleFee(size, aiOracleGasLimit);
 
@@ -191,8 +192,9 @@ contract ORAERC7007Impl is
     function estimateRevealFee(
         uint256 num
     ) external view returns (uint256) {
-        uint64 randOracleGasLimit = _getRandOracleCallbackGasLimit(num);
-        uint64 aiOracleGasLimit = _getAIOracleCallbackGasLimit(num);
+        uint256 promptLength = bytes(basePrompt).length;
+        uint64 randOracleGasLimit = OracleGasEstimator.getRandOracleCallbackGasLimit(num, promptLength);
+        uint64 aiOracleGasLimit = OracleGasEstimator.getAIOracleCallbackGasLimit(num, promptLength);
         // todo: 对fee进行缩放
         return _estimateAIOracleFee(num, aiOracleGasLimit) + _estimateRandOracleFee(randOracleGasLimit);
     }
@@ -273,7 +275,8 @@ contract ORAERC7007Impl is
             }
         }
 
-        uint64 aiOracleGasLimit = _getAIOracleCallbackGasLimit(size);
+        uint256 promptLength = bytes(basePrompt).length;
+        uint64 aiOracleGasLimit = OracleGasEstimator.getAIOracleCallbackGasLimit(size, promptLength);
         uint256 aiOracleFee = _estimateAIOracleFee(size, aiOracleGasLimit);
 
         if (address(this).balance < aiOracleFee) {
@@ -340,7 +343,8 @@ contract ORAERC7007Impl is
         if (size == 0) revert InvalidRequestId();
         if (tokenIdToAiOracleRequestId[tokenIds[0]] != 0) revert RequestAlreadyProcessed();
 
-        uint64 aiOracleGasLimit = _getAIOracleCallbackGasLimit(size);
+        uint256 promptLength = bytes(basePrompt).length;
+        uint64 aiOracleGasLimit = OracleGasEstimator.getAIOracleCallbackGasLimit(size, promptLength);
         uint256 aiOracleFee = _estimateAIOracleFee(size, aiOracleGasLimit);
 
         if (address(this).balance < aiOracleFee) revert InsufficientBalance();
@@ -428,35 +432,6 @@ contract ORAERC7007Impl is
     }
 
     // Internal utility functions
-    function _getAIOracleCallbackGasLimit(
-        uint256 num
-    ) internal view returns (uint64) {
-        uint256 promptLength = bytes(basePrompt).length;
-        uint256 numTimesPromptLen = num * promptLength;
-        uint256 baseGas = num * 105_205 + numTimesPromptLen + promptLength / 32 * 2100 + 14_300;
-        uint256 wordSize = (num * 191 * 32 + numTimesPromptLen * 6) / 32;
-        uint256 memoryGas = (wordSize * wordSize) / 512 + wordSize * 3;
-        uint256 totalGas = baseGas + memoryGas;
-        if (totalGas > type(uint64).max) revert GaslimitOverflow();
-        // todo: 进行一定比例放大
-        return uint64(totalGas);
-    }
-
-    function _getRandOracleCallbackGasLimit(
-        uint256 num
-    ) internal view returns (uint64) {
-        uint256 promptLength = bytes(basePrompt).length;
-        uint256 batchPromptLength = num * (99 + promptLength) + 4;
-        uint256 slotNum = (batchPromptLength + 31) / 32;
-        uint256 baseGas = slotNum * 23_764 + num * 32_100 + 353_700;
-        uint256 wordSize = slotNum * 26 + num * (32 * 200 + promptLength * 23) / 32;
-        uint256 memoryGas = (wordSize * wordSize) / 512 + wordSize * 3;
-        uint256 totalGas = baseGas + memoryGas;
-        if (totalGas > type(uint64).max) revert GaslimitOverflow();
-        // todo: 进行一定比例放大
-        return uint64(totalGas);
-    }
-
     function _estimateAIOracleFee(uint256 num, uint64 gasLimit) internal view returns (uint256) {
         return aiOracle.estimateFeeBatch(modelId, gasLimit, num);
     }
