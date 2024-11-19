@@ -11,15 +11,21 @@ import {IRoyaltyManager} from "./interfaces/IRoyaltyManager.sol";
 
 /**
  * @title RoyaltyManager
- * @dev Manages NFT royalties for trading pairs
+ * @notice Manages NFT royalties for trading pairs
  */
 contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, UUPSUpgradeable {
+    /// @dev pair address => whether the pair is allowed to calc royalty
     mapping(address => bool) public pairRoyaltyAllowed;
 
     event PairRoyaltyStatusUpdate(address indexed pair, bool isAllowed);
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
-     * @dev Initialize the contract
+     * @notice Initialize the contract
      * @param _owner Address of the contract owner
      */
     function initialize(
@@ -30,34 +36,31 @@ contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, U
     }
 
     /**
-     * @dev Calculate royalty fee for a token sale
+     * @notice Calculate royalty fee
      * @param pair Address of the trading pair
      * @param tokenId ID of the token being sold
      * @param price Sale price of the token
      * @return recipients Array of royalty recipients
      * @return amounts Array of royalty amounts
+     * @return royaltyAmount
      */
     function calculateRoyalty(
         address pair,
         uint256 tokenId,
         uint256 price
     ) external view returns (address payable[] memory recipients, uint256[] memory amounts, uint256 royaltyAmount) {
-        // If royalties are not enabled for this pair, return empty arrays (zero royalty)
         if (!pairRoyaltyAllowed[pair]) {
             return (new address payable[](0), new uint256[](0), 0);
         }
 
         address nft = IPair(pair).nft();
 
-        // Calculate royalty
         (address recipient, uint256 amount) = _getRoyalty(nft, tokenId, price);
 
-        // If no valid royalty, return empty arrays
         if (recipient == address(0) || amount == 0) {
             return (new address payable[](0), new uint256[](0), 0);
         }
 
-        // Return royalty information
         recipients = new address payable[](1);
         amounts = new uint256[](1);
         recipients[0] = payable(recipient);
@@ -65,9 +68,6 @@ contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, U
         royaltyAmount = amount;
     }
 
-    /**
-     * @dev Internal function to get royalty
-     */
     function _getRoyalty(
         address nft,
         uint256 tokenId,
@@ -86,7 +86,7 @@ contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, U
     }
 
     /**
-     * @dev Enable or disable royalties for a trading pair
+     * @notice Enable or disable royalties for a trading pair
      * @param pair Address of the trading pair
      * @param isAllowed Whether to enable or disable royalties
      */
@@ -96,7 +96,7 @@ contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, U
     }
 
     /**
-     * @dev Batch enable or disable royalties for trading pairs
+     * @notice Batch enable or disable royalties for trading pairs
      * @param pairs Array of pair addresses
      * @param isAllowed Array of enable/disable flags
      */

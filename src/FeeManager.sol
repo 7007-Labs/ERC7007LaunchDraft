@@ -11,18 +11,16 @@ import {IPair} from "./interfaces/IPair.sol";
 /**
  * @title FeeManager
  * @notice Manages fee configurations and calculations for pairs
- * @dev Handles both protocol and pair-specific fees
  */
 contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgradeable {
-    /// @notice Maximum allowed fee in basis points (50%)
+    /// @dev Maximum allowed fee in basis points (50%)
     uint256 private constant MAX_BPS = 5000;
-    /// @notice Basis points denominator (100%)
+    /// @dev Basis points denominator (100%)
     uint256 private constant BASIS_POINTS = 10_000;
-
-    /// @notice Address that receives protocol fees
+    /// @dev Address that receives protocol fees
     address public protocolFeeRecipient;
 
-    /// @notice Fee configurations for each pair
+    /// @dev pair address => fee configuration
     mapping(address => PairFeeConfig) public pairConfigs;
 
     error ZeroAddress();
@@ -42,7 +40,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Initializes the contract
+     * @notice Initialize the contract
      * @param initialOwner Address of the contract owner
      * @param initialFeeRecipient Address to receive protocol fees
      */
@@ -55,7 +53,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Registers a new pair with fee configuration
+     * @notice Register a new pair with fee configuration
      * @param feeRecipient Address to receive pair fees
      * @param pairFeeBps Pair fee in basis points
      * @param protocolFeeBps Protocol fee in basis points
@@ -86,7 +84,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Calculates fees for a given amount
+     * @notice Calculate fees for a given amount
      * @param pair Address of the pair
      * @param amount The amount to calculate fees for
      * @return recipients Array of fee recipients
@@ -114,7 +112,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Updates the fee recipient for a pair
+     * @notice Update the fee recipient for a pair
      * @param pair Address of the pair
      * @param newFeeRecipient New fee recipient address
      */
@@ -132,7 +130,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Updates the protocol fee recipient
+     * @notice Update the protocol fee recipient
      * @param newFeeRecipient New protocol fee recipient address
      */
     function updateProtocolRecipient(
@@ -147,7 +145,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Updates fees for a pair
+     * @notice Update fees for a pair
      * @param pair Address of the pair
      * @param pairFeeBps New pair fee in basis points
      * @param protocolFeeBps New protocol fee in basis points
@@ -165,8 +163,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Authorizes an upgrade to a new implementation
-     * @param newImplementation Address of new implementation
+     * @dev Required by UUPS pattern
      */
     function _authorizeUpgrade(
         address newImplementation

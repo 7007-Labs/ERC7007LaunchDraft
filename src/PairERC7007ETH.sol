@@ -14,7 +14,6 @@ import {PairType} from "./enums/PairType.sol";
 import {PairVariant} from "./enums/PairVariant.sol";
 import {IPair} from "./interfaces/IPair.sol";
 import {ICurve} from "./interfaces/ICurve.sol";
-import {ITotalSupply} from "./interfaces/ITotalSupply.sol";
 import {IRoyaltyManager} from "./interfaces/IRoyaltyManager.sol";
 import {IPairFactory} from "./interfaces/IPairFactory.sol";
 import {IFeeManager} from "./interfaces/IFeeManager.sol";
