@@ -4,8 +4,10 @@ pragma solidity ^0.8.23;
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 
-/// @title NFTMetadataRenderer
-/// @notice Library for generating and encoding NFT metadata in JSON format with base64 encoding
+/**
+ * @title NFTMetadataRenderer
+ * @notice Library for generating and encoding NFT metadata in JSON format with base64 encoding
+ */
 library NFTMetadataRenderer {
     /// @notice Creates complete metadata string for an NFT including name, description, media data and AIGC info
     /// @param name The name of the NFT

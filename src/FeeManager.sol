@@ -40,7 +40,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Initialize the contract
+     * @notice Initializes the contract
      * @param initialOwner Address of the contract owner
      * @param initialFeeRecipient Address to receive protocol fees
      */
@@ -53,7 +53,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Register a new pair with fee configuration
+     * @notice Registers a new pair with fee configuration
      * @param feeRecipient Address to receive pair fees
      * @param pairFeeBps Pair fee in basis points
      * @param protocolFeeBps Protocol fee in basis points
@@ -84,7 +84,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Calculate fees for a given amount
+     * @notice Calculates fees for a given amount
      * @param pair Address of the pair
      * @param amount The amount to calculate fees for
      * @return recipients Array of fee recipients
@@ -112,7 +112,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Update the fee recipient for a pair
+     * @notice Updates the fee recipient for a pair
      * @param pair Address of the pair
      * @param newFeeRecipient New fee recipient address
      */
@@ -130,7 +130,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Update the protocol fee recipient
+     * @notice Updates the protocol fee recipient
      * @param newFeeRecipient New protocol fee recipient address
      */
     function updateProtocolRecipient(
@@ -145,7 +145,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Update fees for a pair
+     * @notice Updates fees for a pair
      * @param pair Address of the pair
      * @param pairFeeBps New pair fee in basis points
      * @param protocolFeeBps New protocol fee in basis points

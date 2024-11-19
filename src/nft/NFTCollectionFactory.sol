@@ -6,11 +6,14 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
 import {INFTCollectionFactory} from "../interfaces/INFTCollectionFactory.sol";
 import {ORAERC7007Impl} from "./ORAERC7007Impl.sol";
 
-/// @title NFT Collection Factory Contract
-/// @notice Factory contract for deploying and managing NFT collections
+/**
+ * @title NFT Collection Factory Contract
+ * @notice Factory contract for deploying and managing NFT collections
+ */
 contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     /// @dev Address of the implementation contract used as template for NFT collections
     address public nftCollectionImpl;

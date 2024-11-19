@@ -25,7 +25,7 @@ contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, U
     }
 
     /**
-     * @notice Initialize the contract
+     * @notice Initializes the contract
      * @param _owner Address of the contract owner
      */
     function initialize(
@@ -36,7 +36,7 @@ contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, U
     }
 
     /**
-     * @notice Calculate royalty fee
+     * @notice Calculates royalty fee
      * @param pair Address of the trading pair
      * @param tokenId ID of the token being sold
      * @param price Sale price of the token

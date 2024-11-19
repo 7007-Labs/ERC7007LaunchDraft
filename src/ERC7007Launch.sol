@@ -20,12 +20,45 @@ import {Whitelist} from "./libraries/Whitelist.sol";
  * @notice Contract for launching ERC7007 NFT collections.
  */
 contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgradeable, PausableUpgradeable {
+    /// @notice Params for NFT Collection launching
+    struct LaunchParams {
+        /// @notice Initialization data for NFT
+        /// @dev Encoded metadata (name, symbol, description, nsfw)
+        bytes metadataInitializer;
+        /// @notice The prompt text used to generate NFT
+        string prompt;
+        /// @dev The identifier of AIGC provider
+        address provider;
+        /// @dev Addition parameters passed to the provider
+        bytes providerParams;
+        /// @notice The address of the bonding curve contract
+        address bondingCurve;
+        /// @notice The initial number of NFTs that can be purchased at launch
+        uint256 initialBuyNum;
+        /// @notice The fixed price during presale period
+        uint96 initialPrice;
+        /// @notice Maximum total NFTs that can be purchased during presale
+        uint32 presaleMaxNum;
+        /// @notice Presale start timestamp
+        uint64 preSaleStart;
+        /// @notice Presale end timestamp
+        /// @dev set to 0 to disable presale
+        uint64 preSaleEnd;
+        /// @notice Merkle root for verifying presale eligibility
+        bytes32 presaleMerkleRoot;
+    }
+
     uint64 public constant NFT_TOTAL_SUPPLY = 7007;
     uint64 public constant MAX_INIT_BUY_NUM = 10;
+    uint32 public constant MAX_PRESALE_PER_ADDRESS = 1;
+
     address public immutable nftCollectionFactory;
     address public immutable pairFactory;
 
     bool public isEnableWhitelist;
+
+    event WhitelistMerkleRootUpdated(bytes32 newRoot);
+    event WhitelistStateChanged(bool isEnabled);
 
     error InvalidInitialBuyNum();
 
@@ -53,66 +86,45 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     }
 
     /**
-     * @dev Internal function to verify if sender is whitelisted
-     * @param proof Merkle proof for whitelist verification
-     */
-    function _checkWhitelist(
-        bytes32[] calldata proof
-    ) internal view {
-        if (isEnableWhitelist) {
-            require(verifyWhitelistAddress(msg.sender, proof), "Address not whitelisted");
-        }
-    }
-
-    /**
-     * @dev Struct containing parameters for launching a new NFT collection
-     * @param metadataInitializer Initialization data for NFT metadata
-     * @param prompt Description or prompt for the NFT collection
-     * @param provider Address of the provider service
-     * @param providerParams Additional parameters for the provider
-     * @param bondingCurve Address of the bonding curve contract
-     * @param initialBuyNum Number of NFTs to buy during launch
-     * @param initialPrice Initial price for NFTs
-     * @param preSaleStart Timestamp for presale start
-     * @param preSaleEnd Timestamp for presale end
-     * @param presaleMerkleRoot Merkle root for presale whitelist
-     * @param whitelistProof Proof for launch whitelist verification
-     */
-    struct LaunchParams {
-        bytes metadataInitializer;
-        string prompt;
-        address provider;
-        bytes providerParams;
-        address bondingCurve;
-        uint256 initialBuyNum;
-        uint96 initialPrice;
-        uint64 preSaleStart;
-        uint64 preSaleEnd;
-        bytes32 presaleMerkleRoot;
-        bytes32[] whitelistProof;
-    }
-
-    /**
      * @dev Launches a new NFT collection with trading pair
      * @param params LaunchParams struct containing all necessary parameters
+     * @param whitelistProof Proof for launch whitelist verification
      * @notice Creates NFT collection, sets up trading pair, and performs initial buy
      */
-    function launch(
-        LaunchParams calldata params
-    ) external payable whenNotPaused {
+    function launch(LaunchParams calldata params, bytes32[] calldata whitelistProof) external payable whenNotPaused {
         if (params.initialBuyNum == 0 || params.initialBuyNum > MAX_INIT_BUY_NUM) revert InvalidInitialBuyNum();
-        _checkWhitelist(params.whitelistProof);
+        _checkWhitelist(whitelistProof);
 
         address collection = INFTCollectionFactory(nftCollectionFactory).createNFTCollection(
             msg.sender, params.prompt, params.metadataInitializer, params.provider, params.providerParams
         );
 
-        bytes memory data = abi.encodePacked(NFT_TOTAL_SUPPLY);
-        address pair =
-            IPairFactory(pairFactory).createPairERC7007ETH(msg.sender, collection, PairType.LAUNCH, address(0), data);
+        IPair.SalesConfig memory salesConfig = IPair.SalesConfig({
+            maxPresalePurchasePerAddress: MAX_PRESALE_PER_ADDRESS,
+            presaleMaxNum: params.presaleMaxNum,
+            presaleStart: params.preSaleStart,
+            presaleEnd: params.preSaleEnd,
+            publicSaleStart: params.preSaleEnd,
+            initialPrice: params.initialPrice,
+            bondingCurve: ICurve(params.bondingCurve),
+            presaleMerkleRoot: params.presaleMerkleRoot
+        });
 
+        bytes memory data = abi.encode(NFT_TOTAL_SUPPLY, salesConfig);
+
+        // Create trading pair
+        address pair = IPairFactory(pairFactory).createPairERC7007ETH(
+            msg.sender,
+            collection,
+            PairType.LAUNCH,
+            address(0), // No property checker needed
+            data
+        );
+
+        // Activate NFT collection
         IORAERC7007(collection).activate(NFT_TOTAL_SUPPLY, pair, pair);
 
+        // Perform initial NFT purchase
         IPair(pair).swapTokenForNFTs(params.initialBuyNum, msg.value, msg.sender, true, msg.sender);
     }
 
@@ -142,7 +154,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     }
 
     /**
-     * @dev Swaps tokens for NFTs
+     * @notice Swaps tokens for NFTs
      * @param pair Address of the trading pair
      * @param nftNum Number of NFTs to purchase
      * @param maxExpectedTokenInput Maximum amount of tokens willing to spend
@@ -165,7 +177,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     /**
      * @dev Swaps tokens for specific NFT IDs
      * @param pair Address of the trading pair
-     * @param tokenIds Array of specific NFT IDs to purchase
+     * @param tokenIds List of specific NFT IDs to purchase
      * @param maxNFTNum Maximum number of NFTs to purchase
      * @param minNFTNum Minimum number of NFTs to purchase
      * @param maxExpectedTokenInput Maximum amount of tokens willing to spend
@@ -192,7 +204,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     /**
      * @dev Swaps NFTs for tokens
      * @param pair Address of the trading pair
-     * @param tokenIds Array of NFT IDs to sell
+     * @param tokenIds List of NFT IDs to sell to the pair
      * @param minExpectedTokenOutput Minimum amount of tokens to receive
      * @param tokenRecipient Address to receive the tokens
      * @param whitelistProof Proof for whitelist verification
@@ -217,6 +229,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         bytes32 root
     ) external onlyOwner {
         _setWhitelistMerkleRoot(root);
+        emit WhitelistMerkleRootUpdated(root);
     }
 
     /**
@@ -224,6 +237,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
      */
     function disableWhitelist() public onlyOwner {
         isEnableWhitelist = false;
+        emit WhitelistStateChanged(false);
     }
 
     /**
@@ -231,6 +245,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
      */
     function enableWhitelist() public onlyOwner {
         isEnableWhitelist = true;
+        emit WhitelistStateChanged(true);
     }
 
     /**
@@ -245,6 +260,18 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
      */
     function unpause() public onlyOwner {
         _unpause();
+    }
+
+    /**
+     * @dev Internal function to verify if sender is whitelisted
+     * @param proof Merkle proof for whitelist verification
+     */
+    function _checkWhitelist(
+        bytes32[] calldata proof
+    ) internal view {
+        if (isEnableWhitelist) {
+            require(verifyWhitelistAddress(msg.sender, proof), "Address not whitelisted");
+        }
     }
 
     /**

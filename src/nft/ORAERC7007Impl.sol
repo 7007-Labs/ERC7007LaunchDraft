@@ -6,7 +6,6 @@ import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 import {ERC721RoyaltyUpgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721RoyaltyUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-
 import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
@@ -570,9 +569,5 @@ contract ORAERC7007Impl is
     /* Royalty functions */
     function setDefaultRoyalty(address receiver, uint96 feeNumerator) external onlyOwner {
         _setDefaultRoyalty(receiver, feeNumerator);
-    }
-
-    function setTokenRoyalty(uint256 tokenId, address receiver, uint96 feeNumerator) external onlyOwner {
-        _setTokenRoyalty(tokenId, receiver, feeNumerator);
     }
 }

@@ -79,8 +79,8 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
     ) external payable onlyAllowlist returns (address pair) {
         if (_pairType == PairType.LAUNCH) {
             pair = _deployPair(_pairType, _nft);
-            (uint256 _nftTotalSupply, PairERC7007ETH.SalesConfig memory _salesConfig) =
-                abi.decode(params, (uint256, PairERC7007ETH.SalesConfig));
+            (uint256 _nftTotalSupply, IPair.SalesConfig memory _salesConfig) =
+                abi.decode(params, (uint256, IPair.SalesConfig));
 
             if (!bondingCurveAllowed[address(_salesConfig.bondingCurve)]) revert BondingCurveNotAllowed();
 
