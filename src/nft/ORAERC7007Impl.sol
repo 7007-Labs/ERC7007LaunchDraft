@@ -32,14 +32,6 @@ contract ORAERC7007Impl is
     using BitMaps for BitMaps.BitMap;
     using LibBytes for LibBytes.BytesStorage;
 
-    struct CollectionMetadata {
-        string name;
-        string symbol;
-        string description;
-        string prompt;
-        bool nsfw;
-    }
-
     uint256 public constant RAND_ORACLE_MODEL_ID = 0;
     string public constant DEFAULT_IMAGE_URL = "ipfs://xxx"; // todo: 需要给出默认的图片
     string public constant AIGC_TYPE = "image";
@@ -49,7 +41,6 @@ contract ORAERC7007Impl is
     string public description;
     string public basePrompt;
     uint256 public totalSupply;
-    // 允许调用reveal接口的address
     address public operator;
     bool public nsfw;
 
@@ -78,9 +69,13 @@ contract ORAERC7007Impl is
     error UnauthorizedCaller();
     error InsufficientRevealFee();
     error ZeroAddress();
+    error AlreadyActivated();
     error InvalidRequestId();
+    error InvalidTokenId();
+    error EmptyArray();
     error InsufficientBalance();
     error RequestAlreadyProcessed();
+    error GaslimitOverflow();
 
     modifier onlySelf() {
         if (msg.sender != address(this)) revert UnauthorizedCaller();
@@ -94,41 +89,52 @@ contract ORAERC7007Impl is
         _disableInitializers();
     }
 
-    function initialize(bytes calldata metadata, address _owner, uint256 _modelId) public initializer {
-        // __ERC721_init(metadata.name, metadata.symbol);
+    /// @notice Initializes the NFT collection with basic metadata and settings
+    /// @param _owner Owner address of the collection
+    /// @param prompt Base prompt for AI generation
+    /// @param metadataInitializer Encoded metadata (name, symbol, description, nsfw)
+    /// @param _modelId AI model identifier
+    function initialize(
+        address _owner,
+        string calldata prompt,
+        bytes calldata metadataInitializer,
+        uint256 _modelId
+    ) public initializer {
         __ERC721Royalty_init();
         __Ownable_init(_owner);
+        _initializeMetadata(metadataInitializer);
+
+        basePrompt = prompt;
         modelId = _modelId;
-        // basePrompt = metadata.prompt;
-        // nsfw = metadata.nsfw;
-        // description = metadata.description;
-        _initializeMetadata(metadata);
     }
 
-    function _initializeMetadata(
-        bytes calldata data
-    ) internal {}
-
+    /// @notice Activates the collection with initial supply and ownership settings
+    /// @param _totalSupply Total number of NFTs in collection
+    /// @param _defaultNFTOwner Initial owner of all NFTs
+    /// @param _operator Address authorized to reveal NFTs
     function activate(uint256 _totalSupply, address _defaultNFTOwner, address _operator) external {
-        require(_totalSupply > 0);
+        require(_totalSupply > 0, "Invalid totalSupply");
         if (_defaultNFTOwner == address(0)) revert ZeroAddress();
         if (_operator == address(0)) revert ZeroAddress();
-
-        require(totalSupply == 0, "Already activated");
+        if (totalSupply != 0) revert AlreadyActivated();
 
         totalSupply = _totalSupply;
         operator = _operator;
+        defaultNFTOwner = _defaultNFTOwner;
 
         _increaseBalance(_defaultNFTOwner, uint128(_totalSupply));
         emit ConsecutiveTransfer(0, _totalSupply - 1, address(0), _defaultNFTOwner);
     }
 
+    /// @notice Initiates the reveal process for specified NFTs using random seeds
+    /// @param tokenIds Array of token IDs to reveal
+    /// @dev Caller must ensure tokenIds array contains no duplicates and each tokenId has not been revealed before
     function reveal(
         uint256[] memory tokenIds
     ) external payable {
         if (msg.sender != operator) revert UnauthorizedCaller();
         uint256 size = tokenIds.length;
-        require(size > 0, "TokenIds can not be empty");
+        if (size == 0) revert EmptyArray();
 
         bytes32 requestId = keccak256(abi.encodePacked(tokenIds));
 
@@ -136,27 +142,31 @@ contract ORAERC7007Impl is
         uint64 aiOracleGasLimit = _getAIOracleCallbackGasLimit(size);
         uint256 randOracleFee = _estimateRandOracleFee(randOracleGasLimit);
         uint256 aiOracleFee = _estimateAIOracleFee(size, aiOracleGasLimit);
-        if (msg.value < randOracleFee + randOracleFee) revert InsufficientRevealFee();
+        if (msg.value < randOracleFee + aiOracleFee) revert InsufficientRevealFee();
 
         uint256 randOracleRequestId = randOracle.async{value: randOracleFee}(
-            RAND_ORACLE_MODEL_ID,
-            abi.encodePacked(requestId), // requestEntropy
-            address(this),
-            randOracleGasLimit,
-            abi.encode(requestId)
+            RAND_ORACLE_MODEL_ID, abi.encodePacked(requestId), address(this), randOracleGasLimit, abi.encode(requestId)
         );
         requestIdToTokenIds[requestId] = tokenIds;
         emit NewRevealRequest(requestId, randOracleRequestId);
     }
 
+    /// @notice Estimates total fee required for revealing NFTs
+    /// @param num Number of NFTs to reveal
+    /// @return Total fee in wei
     function estimateRevealFee(
         uint256 num
-    ) public view returns (uint256) {
+    ) external view returns (uint256) {
         uint64 randOracleGasLimit = _getRandOracleCallbackGasLimit(num);
         uint64 aiOracleGasLimit = _getAIOracleCallbackGasLimit(num);
         return _estimateAIOracleFee(num, aiOracleGasLimit) + _estimateRandOracleFee(randOracleGasLimit);
     }
 
+    /// @notice Adds AI-generated content data to a token
+    /// @param tokenId Token ID to update
+    /// @param prompt Generation prompt used
+    /// @param aigcData Generated content data
+    /// @param proof Verification proof
     function addAigcData(
         uint256 tokenId,
         bytes memory prompt,
@@ -171,6 +181,10 @@ contract ORAERC7007Impl is
         emit MetadataUpdate(tokenId);
     }
 
+    /// @notice Verifies AI-generated content authenticity
+    /// @param prompt Original generation prompt
+    /// @param aigcData Generated content data
+    /// @param proof Verification proof
     function verify(
         bytes calldata prompt,
         bytes calldata aigcData,
@@ -182,6 +196,9 @@ contract ORAERC7007Impl is
         return aiOracle.isFinalized(aiOracleRequestId) && keccak256(aigcData) == keccak256(currentAigcData);
     }
 
+    /// @notice Updates AI-generated content for a token
+    /// @param prompt Generation prompt
+    /// @param aigcData New generated content data
     function update(bytes memory prompt, bytes memory aigcData) external onlySelf {
         uint256 tokenId = promptToTokenId[prompt];
         aigcDataOf[tokenId].set(aigcData);
@@ -190,6 +207,9 @@ contract ORAERC7007Impl is
         emit MetadataUpdate(tokenId);
     }
 
+    /// @notice Callback handler for randOracle responses
+    /// @param output Random value output
+    /// @param callbackData Original request data
     function awaitRandOracle(
         uint256, /* randOracleRequestId */
         uint256 output,
@@ -210,6 +230,7 @@ contract ORAERC7007Impl is
         uint256 aiOracleFee = _estimateAIOracleFee(size, aiOracleGasLimit);
 
         if (address(this).balance < aiOracleFee) {
+            // todo: 考虑写入tokenIdToAiOracleRequestId,将slot的value变为非0
             emit NotRequestAIOracle(requestId);
             return;
         }
@@ -221,8 +242,11 @@ contract ORAERC7007Impl is
         }
     }
 
+    /// @notice Callback handler for AIOracle responses
+    /// @param output Generated content data
+    /// @param callbackData Original request data
     function aiOracleCallback(
-        uint256 aiOracleRequestId,
+        uint256, /*aiOracleRequestId*/
         bytes calldata output,
         bytes calldata callbackData
     ) external override onlyAIOracleCallback {
@@ -232,13 +256,12 @@ contract ORAERC7007Impl is
         if (size == 0) revert InvalidRequestId();
 
         bytes[] memory cids = _decodeOutput(output);
-        require(size == cids.length, "length mismatch");
+        require(size == cids.length, "Wrong output");
 
         string memory _basePrompt = basePrompt;
 
         for (uint256 i = 0; i < size; i++) {
             uint256 tokenId = tokenIds[i];
-            // tokenIdToAiOracleRequestId[tokenIds[i]] = aiOracleRequestId;
             bytes memory prompt = _buildPrompt(_basePrompt, seedOf[tokenId]);
             if (aigcDataOf[tokenId].isEmpty()) {
                 this.addAigcData(tokenId, prompt, cids[i], bytes(""));
@@ -248,6 +271,8 @@ contract ORAERC7007Impl is
         }
     }
 
+    /// @notice Retries AI oracle request for failed reveals
+    /// @param requestId Original request ID to retry
     function retryRequestAIOracle(
         bytes32 requestId
     ) external payable {
@@ -276,9 +301,13 @@ contract ORAERC7007Impl is
         }
     }
 
+    /// @notice Returns token URI with metadata and AI-generated content
+    /// @param tokenId Token ID to query
     function tokenURI(
         uint256 tokenId
     ) public view override returns (string memory) {
+        if (tokenId >= totalSupply) revert InvalidTokenId();
+
         string memory imageUrl;
         if (aigcDataOf[tokenId].isEmpty()) {
             imageUrl = DEFAULT_IMAGE_URL;
@@ -297,19 +326,21 @@ contract ORAERC7007Impl is
         return NFTMetadataRenderer.createMetadata(name(), description, mediaData, aigcInfo);
     }
 
+    /// @notice Returns collection-level metadata
     function contractURI() external view returns (string memory) {
         return NFTMetadataRenderer.encodeContractURIJSON(name(), description);
     }
 
+    /// @notice Internal function to get token owner
+    /// @param tokenId Token ID to query
     function _ownerOf(
         uint256 tokenId
     ) internal view override returns (address) {
-        if (_firstOwnershipChange.get(tokenId) == false) {
-            return defaultNFTOwner;
-        }
-        return super._ownerOf(tokenId);
+        if (tokenId >= totalSupply) revert InvalidTokenId();
+        return _firstOwnershipChange.get(tokenId) ? super._ownerOf(tokenId) : defaultNFTOwner;
     }
 
+    /// @notice Internal function to update token ownership
     function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
         address from = super._update(to, tokenId, auth);
         if (_firstOwnershipChange.get(tokenId) == false) {
@@ -318,6 +349,7 @@ contract ORAERC7007Impl is
         return from;
     }
 
+    // Internal utility functions...
     function _getAIOracleCallbackGasLimit(
         uint256 num
     ) internal view returns (uint64) {
@@ -327,7 +359,7 @@ contract ORAERC7007Impl is
         uint256 wordSize = (num * 191 * 32 + numTimesPromptLen * 6) / 32;
         uint256 memoryGas = (wordSize * wordSize) / 512 + wordSize * 3;
         uint256 totalGas = baseGas + memoryGas;
-        require(totalGas <= type(uint64).max, "Gas limit overflow");
+        if (totalGas > type(uint64).max) revert GaslimitOverflow();
         return uint64(totalGas);
     }
 
@@ -341,7 +373,7 @@ contract ORAERC7007Impl is
         uint256 wordSize = slotNum * 26 + num * (32 * 200 + promptLength * 23) / 32;
         uint256 memoryGas = (wordSize * wordSize) / 512 + wordSize * 3;
         uint256 totalGas = baseGas + memoryGas;
-        require(totalGas <= type(uint64).max, "Gas limit overflow");
+        if (totalGas > type(uint64).max) revert GaslimitOverflow();
         return uint64(totalGas);
     }
 
@@ -361,8 +393,8 @@ contract ORAERC7007Impl is
         uint256 fee,
         uint64 gasLimit,
         bytes memory callbackData
-    ) internal returns (uint256 aiOracleRequestId) {
-        aiOracleRequestId = aiOracle.requestBatchInference{value: fee}(
+    ) internal returns (uint256) {
+        return aiOracle.requestBatchInference{value: fee}(
             size,
             modelId,
             batchPrompt,
@@ -376,9 +408,9 @@ contract ORAERC7007Impl is
 
     function _buildBatchPrompt(
         uint256[] memory seeds
-    ) internal view returns (bytes memory batchPrompt) {
+    ) internal view returns (bytes memory) {
         string memory _basePrompt = basePrompt;
-        batchPrompt = "[";
+        bytes memory batchPrompt = "[";
         for (uint256 i = 0; i < seeds.length; i++) {
             if (i > 0) {
                 batchPrompt = bytes.concat(batchPrompt, ",");
@@ -386,7 +418,7 @@ contract ORAERC7007Impl is
             bytes memory prompt = _buildPrompt(_basePrompt, seeds[i]);
             batchPrompt = bytes.concat(batchPrompt, prompt);
         }
-        batchPrompt = bytes.concat(batchPrompt, "]");
+        return bytes.concat(batchPrompt, "]");
     }
 
     function _buildPrompt(string memory prompt, uint256 seed) internal pure returns (bytes memory) {
@@ -417,10 +449,12 @@ contract ORAERC7007Impl is
     }
 
     /* royalty */
+    /// @notice Sets default royalty for all tokens
     function setDefaultRoyalty(address receiver, uint96 feeNumerator) public onlyOwner {
         _setDefaultRoyalty(receiver, feeNumerator);
     }
 
+    /// @notice Sets royalty for a specific token
     function setTokenRoyalty(uint256 tokenId, address receiver, uint96 feeNumerator) public onlyOwner {
         _setTokenRoyalty(tokenId, receiver, feeNumerator);
     }

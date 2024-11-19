@@ -46,7 +46,7 @@ contract NFTCollectionFactory is INFTCollectionFactory, Initializable, OwnableUp
         if (!oraModelAllowed[modelId]) revert ORAModelNotAllowed();
 
         collection = _deployNFTCollection(provider, modelId, prompt);
-        ORAERC7007Impl(collection).initialize(metadataInitializer, _owner, modelId);
+        ORAERC7007Impl(collection).initialize(_owner, prompt, metadataInitializer, modelId);
     }
 
     function _deployNFTCollection(
