@@ -29,4 +29,9 @@ contract NFTMetadataRendererTest is Test {
             '{"name": "name", "description": "description", "image": "https://example.com/image.png", "prompt": "prompt", "aigc_type": "aigcType", "aigc_data": "aigcData", "proof_type": "proofType", "provider": "provider", "modelId": "modelId"}'
         );
     }
+
+    function test_encodeContractURIJSON() public {
+        string memory data = NFTMetadataRenderer.encodeContractURIJSON("name", "description");
+        assertEq(data, "data:application/json;base64,eyJuYW1lIjogIm5hbWUiLCAiZGVzY3JpcHRpb24iOiAiZGVzY3JpcHRpb24ifQ==");
+    }
 }

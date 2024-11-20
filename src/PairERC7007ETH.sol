@@ -106,8 +106,8 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         SalesConfig calldata _salesConfig
     ) external initializer {
         __Ownable_init(_owner);
-        require(_nftTotalSupply > 0);
-        require(_nft != address(0));
+        require(_nft != address(0), "Invalid NFT address");
+        require(_nftTotalSupply > 0, "Invalid NFT total supply");
         nft = _nft;
         propertyChecker = _propertyChecker;
         nftTotalSupply = _nftTotalSupply;
