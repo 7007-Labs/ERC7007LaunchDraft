@@ -41,15 +41,13 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
 
     /**
      * @notice Initializes the contract
-     * @param initialOwner Address of the contract owner
-     * @param initialFeeRecipient Address to receive protocol fees
+     * @param _owner Address of the contract owner
+     * @param _protocolFeeRecipient Address to receive protocol fees
      */
-    function initialize(address initialOwner, address initialFeeRecipient) external initializer {
-        if (initialOwner == address(0)) revert ZeroAddress();
-        if (initialFeeRecipient == address(0)) revert ZeroAddress();
-
-        __Ownable_init(initialOwner);
-        protocolFeeRecipient = initialFeeRecipient;
+    function initialize(address _owner, address _protocolFeeRecipient) external initializer {
+        if (_protocolFeeRecipient == address(0)) revert ZeroAddress();
+        __Ownable_init(_owner);
+        protocolFeeRecipient = _protocolFeeRecipient;
     }
 
     /**
@@ -151,6 +149,7 @@ contract FeeManager is IFeeManager, Initializable, OwnableUpgradeable, UUPSUpgra
      * @param protocolFeeBps New protocol fee in basis points
      */
     function updatePairFees(address pair, uint16 pairFeeBps, uint16 protocolFeeBps) external onlyOwner {
+        // todo: 暂定最大值50%，需要pairFeeBps和protocolFeeBps限定逻辑
         if (pairFeeBps + protocolFeeBps > MAX_BPS) revert FeesExceedMaximum();
 
         PairFeeConfig storage config = pairConfigs[pair];

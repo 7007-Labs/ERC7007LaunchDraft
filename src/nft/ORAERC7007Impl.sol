@@ -369,6 +369,10 @@ contract ORAERC7007Impl is
         }
     }
 
+    // todo: 增加一个只能由operator操作的转移合约里eth的接口。
+    // 限制只能所有图开完后才能调用。目前的operator为pair，要在pair中再实现一个函数F1,来调用当前函数F2。
+    // 需要确定F1的调用权限
+
     /**
      * @notice Returns token URI with metadata
      * @param tokenId Token ID
