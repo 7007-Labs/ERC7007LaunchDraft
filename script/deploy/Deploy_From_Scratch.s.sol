@@ -6,9 +6,11 @@ import "forge-std/Script.sol";
 import "./ExistingDeploymentParser.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IAIOracle} from "../../src/interfaces/IAIOracle.sol";
+import {IRandOracle} from "../../src/interfaces/IRandOracle.sol";
 
 contract Deploy is ExistingDeploymentParser {
     address aiOracle = 0x0A0f4321214BB6C7811dD8a71cF587bdaF03f0A0;
+    address randOracle = 0x0A0f4321214BB6C7811dD8a71cF587bdaF03f0A0; // todo: change it
     address token7007 = vm.addr(7007);
     address protocolFeeRecipient = vm.addr(7007);
     address admin = vm.addr(1);
@@ -19,22 +21,23 @@ contract Deploy is ExistingDeploymentParser {
         _deployBondCurves();
         _configORA();
         _configBondingCurves();
+        _configPermission();
         vm.stopBroadcast();
 
         outputContractAddresses(getOutputPath());
     }
 
     function _deployFromScrath() internal {
-        royaltyManagerImpl = new RoyaltyManager();
-        royaltyManagerProxy = RoyaltyManager(
+        royaltyExecutorImpl = new RoyaltyExecutor();
+        royaltyExecutorProxy = RoyaltyExecutor(
             address(
                 new ERC1967Proxy(
-                    address(royaltyManagerImpl), abi.encodeWithSelector(RoyaltyManager.initialize.selector, admin)
+                    address(royaltyExecutorImpl), abi.encodeWithSelector(RoyaltyExecutor.initialize.selector, admin)
                 )
             )
         );
 
-        oraERC7007Impl = new ORAERC7007Impl(IAIOracle(aiOracle));
+        oraERC7007Impl = new ORAERC7007Impl(IAIOracle(aiOracle), IRandOracle(randOracle));
 
         nftCollectionFactoryImpl = new NFTCollectionFactory();
         nftCollectionFactoryProxy = NFTCollectionFactory(
@@ -59,15 +62,12 @@ contract Deploy is ExistingDeploymentParser {
             )
         );
 
-        transferManager = new TransferManager(address(pairFactoryProxy));
-
-        pairERC7007ETHImpl = new PairERC7007ETH(
-            address(pairFactoryProxy), address(royaltyManagerProxy), address(feeManagerProxy), address(transferManager)
-        );
+        pairERC7007ETHImpl =
+            new PairERC7007ETH(address(pairFactoryProxy), address(royaltyExecutorProxy), address(feeManagerProxy));
 
         pairFactoryProxy.initialize(admin, address(pairERC7007ETHImpl));
 
-        erc7007LaunchImpl = new ERC7007Launch(address(nftCollectionFactoryProxy), address(pairFactoryProxy), token7007);
+        erc7007LaunchImpl = new ERC7007Launch(address(nftCollectionFactoryProxy), address(pairFactoryProxy));
         erc7007LaunchProxy = ERC7007Launch(
             address(
                 new ERC1967Proxy(

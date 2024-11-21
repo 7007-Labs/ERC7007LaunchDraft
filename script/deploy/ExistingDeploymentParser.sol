@@ -6,9 +6,8 @@ import "forge-std/Test.sol";
 import {ORAERC7007Impl} from "../../src/nft/ORAERC7007Impl.sol";
 import {NFTCollectionFactory} from "../../src/nft/NFTCollectionFactory.sol";
 import {SimpleCurve} from "../../src/bonding-curves/SimpleCurve.sol";
-import {RoyaltyManager} from "../../src/RoyaltyManager.sol";
+import {RoyaltyExecutor} from "../../src/RoyaltyExecutor.sol";
 import {FeeManager} from "../../src/FeeManager.sol";
-import {TransferManager} from "../../src/TransferManager.sol";
 import {PairFactory} from "../../src/PairFactory.sol";
 import {PairERC7007ETH} from "../../src/PairERC7007ETH.sol";
 import {ERC7007Launch} from "../../src/ERC7007Launch.sol";
@@ -20,11 +19,10 @@ struct DeployedBondingCurve {
 }
 
 contract ExistingDeploymentParser is Script, Test {
-    RoyaltyManager public royaltyManagerProxy;
-    RoyaltyManager public royaltyManagerImpl;
+    RoyaltyExecutor public royaltyExecutorProxy;
+    RoyaltyExecutor public royaltyExecutorImpl;
     FeeManager public feeManagerImpl;
     FeeManager public feeManagerProxy;
-    TransferManager public transferManager;
     ORAERC7007Impl public oraERC7007Impl;
     NFTCollectionFactory public nftCollectionFactoryImpl;
     NFTCollectionFactory public nftCollectionFactoryProxy;
@@ -42,11 +40,10 @@ contract ExistingDeploymentParser is Script, Test {
         string memory parent_object = "parent object";
 
         string memory deployed_addresses = "addresses";
-        vm.serializeAddress(deployed_addresses, "royaltyManagerImpl", address(royaltyManagerImpl));
-        vm.serializeAddress(deployed_addresses, "royaltyManagerProxy", address(royaltyManagerProxy));
+        vm.serializeAddress(deployed_addresses, "royaltyExecutorImpl", address(royaltyExecutorImpl));
+        vm.serializeAddress(deployed_addresses, "royaltyExecutorProxy", address(royaltyExecutorProxy));
         vm.serializeAddress(deployed_addresses, "feeManagerImpl", address(feeManagerImpl));
         vm.serializeAddress(deployed_addresses, "feeManagerProxy", address(feeManagerProxy));
-        vm.serializeAddress(deployed_addresses, "transferManager", address(transferManager));
         vm.serializeAddress(deployed_addresses, "oraERC7007Impl", address(oraERC7007Impl));
         vm.serializeAddress(deployed_addresses, "nftCollectionFactoryImpl", address(nftCollectionFactoryImpl));
         vm.serializeAddress(deployed_addresses, "nftCollectionFactoryProxy", address(nftCollectionFactoryProxy));

@@ -20,7 +20,7 @@ interface IPair {
         /// @notice Public sale start timestamp
         uint64 publicSaleStart;
         /// @notice The fixed price during presale period
-        uint96 initialPrice;
+        uint96 presalePrice;
         /// @notice The address of the bonding curve contract
         ICurve bondingCurve;
         /// @notice Merkle root for verifying presale eligibility

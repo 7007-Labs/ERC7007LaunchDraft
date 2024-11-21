@@ -14,7 +14,7 @@ import {PairType} from "./enums/PairType.sol";
 import {PairVariant} from "./enums/PairVariant.sol";
 import {IPair} from "./interfaces/IPair.sol";
 import {ICurve} from "./interfaces/ICurve.sol";
-import {IRoyaltyManager} from "./interfaces/IRoyaltyManager.sol";
+import {IRoyaltyExecutor} from "./interfaces/IRoyaltyExecutor.sol";
 import {IPairFactory} from "./interfaces/IPairFactory.sol";
 import {IFeeManager} from "./interfaces/IFeeManager.sol";
 import {IORAERC7007} from "./interfaces/IORAERC7007.sol";
@@ -33,7 +33,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     uint16 public constant DEFAULT_PROTOCOL_FEE_BPS = 100;
 
     IPairFactory public immutable factory;
-    IRoyaltyManager public immutable royaltyManager;
+    IRoyaltyExecutor public immutable royaltyManager;
     IFeeManager public immutable feeManager;
 
     address public nft;
@@ -49,6 +49,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
     event SwapNFTInPair(uint256 amountOut, uint256[] ids);
     event SwapNFTOutPair(uint256 amountIn, uint256[] ids);
+
     event PresaleMerkleRootUpdate(bytes32 newRoot);
 
     error TradeFeeTooLarge();
@@ -85,7 +86,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
      */
     constructor(address _factory, address _royaltyManager, address _feeManager) {
         factory = IPairFactory(_factory);
-        royaltyManager = IRoyaltyManager(_royaltyManager);
+        royaltyManager = IRoyaltyExecutor(_royaltyManager);
         feeManager = IFeeManager(_feeManager);
         _disableInitializers();
     }
@@ -136,6 +137,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         bool isRouter,
         address routerCaller
     ) external payable nonReentrant onlyPresaleActive returns (uint256 presaleNum, uint256 totalAmount) {
+        // todo: presaleNum rename
         if (!factory.isRouterAllowed(msg.sender)) revert NotRouter();
         presaleNum = Math.min(nftNum, salesConfig.presaleMaxNum - nextUnIssuedTokenId);
         if (presaleNum == 0) revert SoldOut();
@@ -151,7 +153,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         uint256 revealFee = IORAERC7007(nft).estimateRevealFee(presaleNum);
         IORAERC7007(nft).reveal{value: revealFee}(tokenIds);
 
-        uint256 price = salesConfig.initialPrice * presaleNum;
+        uint256 price = salesConfig.presalePrice * presaleNum;
         totalAmount = _swapTokenForSpecificNFTs(tokenIds, price, revealFee, maxExpectedTokenInput, nftRecipient);
     }
 
@@ -213,7 +215,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     /**
      * @notice Swaps tokens for specific NFT IDs during public sale
      * @param targetTokenIds List of specific NFT IDs to purchase
-     * @param maxNFTNum Maximum number of NFTs to purchase
+     * @param expectedNFTNum Maximum number of NFTs to purchase // todo
      * @param minNFTNum Minimum number of NFTs to purchase
      * @param maxExpectedTokenInput Maximum amount of ETH willing to spend
      * @param nftRecipient Address to receive the NFTs
@@ -222,7 +224,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
      */
     function swapTokenForSpecificNFTs(
         uint256[] calldata targetTokenIds,
-        uint256 maxNFTNum,
+        uint256 expectedNFTNum,
         uint256 minNFTNum,
         uint256 maxExpectedTokenInput,
         address nftRecipient,
@@ -243,8 +245,8 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
             totalNFTNum += 1;
         }
 
-        if (totalNFTNum < maxNFTNum) {
-            uint256[] memory newTokenIds = _selectNFTs(maxNFTNum - totalNFTNum);
+        if (totalNFTNum < expectedNFTNum) {
+            uint256[] memory newTokenIds = _selectNFTs(expectedNFTNum - totalNFTNum);
             for (uint256 i = 0; i < newTokenIds.length; i++) {
                 tokenIds[totalNFTNum] = newTokenIds[i];
                 totalNFTNum += 1;
@@ -255,8 +257,8 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         assembly {
             mstore(tokenIds, totalNFTNum)
         }
-        require(totalNFTNum >= minNFTNum);
         if (totalNFTNum < minNFTNum) revert OutputTooSmall();
+
         uint256 price = _bondingCurve().getBuyPrice(address(this), totalNFTNum);
         totalAmount = _swapTokenForSpecificNFTs(tokenIds, price, 0, maxExpectedTokenInput, nftRecipient);
     }
@@ -281,9 +283,10 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
         if (tokenIds.length == 0) revert ZeroSwapAmount();
         uint256 price = _bondingCurve().getSellPrice(address(this), tokenIds.length);
-
+        outputAmount = price;
+        // todo: price - totalFee
         (address payable[] memory royaltyRecipients, uint256[] memory royaltyAmounts, uint256 totalRoyalty) =
-            IRoyaltyManager(royaltyManager).calculateRoyalty(address(this), tokenIds[0], outputAmount);
+            IRoyaltyExecutor(royaltyManager).calculateRoyalty(address(this), tokenIds[0], outputAmount);
 
         (address payable[] memory feeRecipients, uint256[] memory feeAmounts, uint256 totalFee) =
             IFeeManager(feeManager).calculateFees(address(this), price);
@@ -342,11 +345,11 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         uint256 assetId,
         uint256 numItems
     ) external view returns (uint256 inputAmount, uint256 revealFee, uint256 royaltyAmount) {
-        uint256 price = salesConfig.initialPrice * numItems;
+        uint256 price = salesConfig.presalePrice * numItems;
 
         (,, uint256 totalFee) = IFeeManager(feeManager).calculateFees(address(this), price);
 
-        (,, royaltyAmount) = IRoyaltyManager(royaltyManager).calculateRoyalty(address(this), assetId, price);
+        (,, royaltyAmount) = IRoyaltyExecutor(royaltyManager).calculateRoyalty(address(this), assetId, price);
 
         revealFee = IORAERC7007(nft).estimateRevealFee(numItems);
         inputAmount = price + totalFee + royaltyAmount + revealFee;
@@ -375,7 +378,9 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
         (,, uint256 totalFee) = IFeeManager(feeManager).calculateFees(address(this), price);
 
-        (,, royaltyAmount) = IRoyaltyManager(royaltyManager).calculateRoyalty(address(this), assetId, price);
+        (,, royaltyAmount) = IRoyaltyExecutor(royaltyManager).calculateRoyalty(address(this), assetId, price);
+        // r / (r + p)
+        //
         inputAmount = price + totalFee + royaltyAmount + revealFee;
     }
 
@@ -394,7 +399,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         (,, uint256 totalFee) = IFeeManager(feeManager).calculateFees(address(this), price);
 
         outputAmount = price - totalFee;
-        (,, royaltyAmount) = IRoyaltyManager(royaltyManager).calculateRoyalty(address(this), assetId, outputAmount);
+        (,, royaltyAmount) = IRoyaltyExecutor(royaltyManager).calculateRoyalty(address(this), assetId, outputAmount);
         outputAmount -= royaltyAmount;
     }
 
@@ -438,9 +443,10 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
             IFeeManager(feeManager).calculateFees(address(this), price);
 
         (address payable[] memory royaltyRecipients, uint256[] memory royaltyAmounts, uint256 totalRoyalty) =
-            IRoyaltyManager(royaltyManager).calculateRoyalty(address(this), tokenIds[0], price);
+            IRoyaltyExecutor(royaltyManager).calculateRoyalty(address(this), tokenIds[0], price);
 
         totalAmount = price + totalFee + totalRoyalty + revealFee;
+
         if (totalAmount > maxExpectedTokenInput) {
             revert InputTooLarge();
         }
@@ -491,7 +497,10 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
         bytes32 leaf = keccak256(abi.encodePacked(_from));
 
-        if (!MerkleProof.verifyCalldata(merkleProof, salesConfig.presaleMerkleRoot, leaf)) {
+        if (
+            salesConfig.presaleMerkleRoot != bytes32(0)
+                && !MerkleProof.verifyCalldata(merkleProof, salesConfig.presaleMerkleRoot, leaf)
+        ) {
             revert PresaleMerkleNotApproved();
         }
     }
@@ -502,7 +511,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     ) internal view returns (uint256[] memory tokenIds) {
         tokenIds = new uint256[](num);
         uint256 mod = nextUnIssuedTokenId;
-        uint256 start = block.number % mod;
+        uint256 start = uint256(blockhash(block.number)) % mod;
         uint256 count = 0;
         for (uint256 i = 0; i < nextUnIssuedTokenId; i++) {
             uint256 tokenId = (start + i) % mod;

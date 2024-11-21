@@ -6,9 +6,9 @@ library OracleGasEstimator {
 
     function getAIOracleCallbackGasLimit(uint256 num, uint256 promptLength) internal pure returns (uint64) {
         uint256 numTimesPromptLen = num * promptLength;
-        uint256 baseGas = num * 105_205 + numTimesPromptLen + promptLength / 32 * 2100 + 14_300;
+        uint256 baseGas = num * 105_205 + numTimesPromptLen + promptLength / 32 * 2100 + 14_300; // storage sload sstore
         uint256 wordSize = (num * 191 * 32 + numTimesPromptLen * 6) / 32;
-        uint256 memoryGas = (wordSize * wordSize) / 512 + wordSize * 3;
+        uint256 memoryGas = (wordSize * wordSize) / 512 + wordSize * 3; // memory expans cost
         uint256 totalGas = baseGas + memoryGas;
         if (totalGas > type(uint64).max) revert GaslimitOverflow();
         // todo: 进行一定比例放大

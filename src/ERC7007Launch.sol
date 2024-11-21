@@ -39,7 +39,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         /// @notice The initial number of NFTs that can be purchased at launch
         uint256 initialBuyNum;
         /// @notice The fixed price during presale period
-        uint96 initialPrice;
+        uint96 presalePrice;
         /// @notice Maximum total NFTs that can be purchased during presale
         uint32 presaleMaxNum;
         /// @notice Presale start timestamp
@@ -91,12 +91,15 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     /**
      * @dev Launches a new NFT collection with trading pair
      * @param params LaunchParams struct containing all necessary parameters
-     * @param whitelistProof Proof for launch whitelist verification
+     * @param productWhitelistProof Proof for launch whitelist verification
      * @notice Creates NFT collection, sets up trading pair, and performs initial buy
      */
-    function launch(LaunchParams calldata params, bytes32[] calldata whitelistProof) external payable whenNotPaused {
+    function launch(
+        LaunchParams calldata params,
+        bytes32[] calldata productWhitelistProof
+    ) external payable whenNotPaused {
         if (params.initialBuyNum == 0 || params.initialBuyNum > MAX_INIT_BUY_NUM) revert InvalidInitialBuyNum();
-        _checkWhitelist(whitelistProof);
+        _checkWhitelist(productWhitelistProof);
 
         address collection = INFTCollectionFactory(nftCollectionFactory).createNFTCollection(
             msg.sender, params.prompt, params.metadataInitializer, params.provider, params.providerParams
@@ -108,7 +111,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
             presaleStart: params.preSaleStart,
             presaleEnd: params.preSaleEnd,
             publicSaleStart: params.preSaleEnd,
-            initialPrice: params.initialPrice,
+            presalePrice: params.presalePrice,
             bondingCurve: ICurve(params.bondingCurve),
             presaleMerkleRoot: params.presaleMerkleRoot
         });
@@ -128,7 +131,9 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         IORAERC7007(collection).activate(NFT_TOTAL_SUPPLY, pair, pair);
 
         // Perform initial NFT purchase
-        IPair(pair).swapTokenForNFTs{value: msg.value}(params.initialBuyNum, msg.value, msg.sender, true, msg.sender);
+        // IPair(pair).swapTokenForNFTs{value: msg.value}(params.initialBuyNum, msg.value, msg.sender, true, msg.sender);
+        // todo: 根据预售情况来区分
+        // 0
     }
 
     /**
@@ -137,7 +142,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
      * @param nftNum Number of NFTs to purchase
      * @param maxExpectedTokenInput Maximum amount of tokens willing to spend
      * @param nftRecipient Address to receive the NFTs
-     * @param whitelistProof Proof for launch whitelist verification
+     * @param productWhitelistProof Proof for launch whitelist verification
      * @param presaleMerkleProof Proof for presale whitelist verification
      * @return tokenInputAmount Amount of tokens spent
      * @return protocolFee Protocol fee charged
@@ -147,10 +152,10 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         uint256 nftNum,
         uint256 maxExpectedTokenInput,
         address nftRecipient,
-        bytes32[] calldata whitelistProof,
-        bytes32[] calldata presaleMerkleProof
+        bytes32[] calldata presaleMerkleProof,
+        bytes32[] calldata productWhitelistProof
     ) external payable whenNotPaused returns (uint256, uint256) {
-        _checkWhitelist(whitelistProof);
+        _checkWhitelist(productWhitelistProof);
         return IPair(pair).purchasePresale{value: msg.value}(
             nftNum, maxExpectedTokenInput, nftRecipient, presaleMerkleProof, true, msg.sender
         );
@@ -162,7 +167,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
      * @param nftNum Number of NFTs to purchase
      * @param maxExpectedTokenInput Maximum amount of tokens willing to spend
      * @param nftRecipient Address to receive the NFTs
-     * @param whitelistProof Proof for whitelist verification
+     * @param productWhitelistProof Proof for whitelist verification
      * @return tokenInputAmount Amount of tokens spent
      * @return protocolFee Protocol fee charged
      */
@@ -171,9 +176,9 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         uint256 nftNum,
         uint256 maxExpectedTokenInput,
         address nftRecipient,
-        bytes32[] calldata whitelistProof
+        bytes32[] calldata productWhitelistProof
     ) external payable whenNotPaused returns (uint256, uint256) {
-        _checkWhitelist(whitelistProof);
+        _checkWhitelist(productWhitelistProof);
         return IPair(pair).swapTokenForNFTs{value: msg.value}(
             nftNum, maxExpectedTokenInput, nftRecipient, true, msg.sender
         );
@@ -187,7 +192,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
      * @param minNFTNum Minimum number of NFTs to purchase
      * @param maxExpectedTokenInput Maximum amount of tokens willing to spend
      * @param nftRecipient Address to receive the NFTs
-     * @param whitelistProof Proof for whitelist verification
+     * @param productWhitelistProof Proof for whitelist verification
      * @return tokenInputAmount Amount of tokens spent
      * @return protocolFee Protocol fee charged
      */
@@ -198,9 +203,9 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         uint256 minNFTNum,
         uint256 maxExpectedTokenInput,
         address nftRecipient,
-        bytes32[] calldata whitelistProof
+        bytes32[] calldata productWhitelistProof
     ) external payable returns (uint256, uint256) {
-        _checkWhitelist(whitelistProof);
+        _checkWhitelist(productWhitelistProof);
         return IPair(pair).swapTokenForSpecificNFTs{value: msg.value}(
             tokenIds, maxNFTNum, minNFTNum, maxExpectedTokenInput, nftRecipient, true, msg.sender
         );
@@ -212,7 +217,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
      * @param tokenIds List of NFT IDs to sell to the pair
      * @param minExpectedTokenOutput Minimum amount of tokens to receive
      * @param tokenRecipient Address to receive the tokens
-     * @param whitelistProof Proof for whitelist verification
+     * @param productWhitelistProof Proof for whitelist verification
      * @return Amount of tokens received
      */
     function swapNFTsForToken(
@@ -220,9 +225,9 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         uint256[] calldata tokenIds,
         uint256 minExpectedTokenOutput,
         address payable tokenRecipient,
-        bytes32[] calldata whitelistProof
+        bytes32[] calldata productWhitelistProof
     ) external whenNotPaused returns (uint256) {
-        _checkWhitelist(whitelistProof);
+        _checkWhitelist(productWhitelistProof);
         return IPair(pair).swapNFTsForToken(tokenIds, minExpectedTokenOutput, tokenRecipient, true, msg.sender);
     }
 
@@ -270,7 +275,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     /**
      * @notice Calculates the total fee required for launching an NFT collection
      * @dev The total fee consists of:
-     *      1. Initial NFT purchase price (initialBuyNum * initialPrice)
+     *      1. Initial NFT purchase price (initialBuyNum * presalePrice)
      *      2. Combined fee (1% fee + 1% protocol fee = 2% total)
      *      3. Random oracle fee based on gas estimation for callback
      *      4. AI oracle fee based on gas estimation and model parameters
@@ -284,7 +289,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         address aiOracle,
         address randOracle
     ) external view returns (uint256) {
-        uint256 price = params.initialBuyNum * params.initialPrice;
+        uint256 price = params.initialBuyNum * params.presalePrice;
         uint256 fee = price * 200 / 10_000;
 
         uint256 promptLength = bytes(params.prompt).length;

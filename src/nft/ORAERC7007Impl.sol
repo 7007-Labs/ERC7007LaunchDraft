@@ -195,7 +195,7 @@ contract ORAERC7007Impl is
         uint256 promptLength = bytes(basePrompt).length;
         uint64 randOracleGasLimit = OracleGasEstimator.getRandOracleCallbackGasLimit(num, promptLength);
         uint64 aiOracleGasLimit = OracleGasEstimator.getAIOracleCallbackGasLimit(num, promptLength);
-        // todo: 对fee进行缩放
+        // todo: 对fee进行放大，gasprice
         return _estimateAIOracleFee(num, aiOracleGasLimit) + _estimateRandOracleFee(randOracleGasLimit);
     }
 
@@ -372,6 +372,7 @@ contract ORAERC7007Impl is
     // todo: 增加一个只能由operator操作的转移合约里eth的接口。
     // 限制只能所有图开完后才能调用。目前的operator为pair，要在pair中再实现一个函数F1,来调用当前函数F2。
     // 需要确定F1的调用权限
+    // todo: 使用统一的一个operator来开图
 
     /**
      * @notice Returns token URI with metadata
@@ -477,7 +478,9 @@ contract ORAERC7007Impl is
                     + 78 // seed number (max uint256 length in decimal)
                     + 22
             ); // {"prompt":"","seed":}, fixed parts
-
+        // [{"prompt":"","seed":}, {prompt":"","seed"}] => bytes input
+        // uint256 => de  32bytes => 78bytes
+        // event
         bytes memory batchPrompt = new bytes(estimatedLength);
         uint256 ptr = 0;
         batchPrompt[ptr++] = "[";

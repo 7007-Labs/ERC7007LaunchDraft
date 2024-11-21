@@ -15,15 +15,13 @@ contract FeeManagerTest is Test {
     address public pair = makeAddr("pair");
 
     function setUp() public {
-        owner = makeAddr("owner");
-
         FeeManager feeManagerImpl = new FeeManager();
         ERC1967Proxy proxy = new ERC1967Proxy(address(feeManagerImpl), "");
         feeManager = FeeManager(address(proxy));
         feeManager.initialize(owner, protocolFeeRecipient);
     }
 
-    function test_Initialize() public {
+    function test_Initialize() public view {
         assertEq(feeManager.owner(), owner);
         assertEq(feeManager.protocolFeeRecipient(), protocolFeeRecipient);
     }

@@ -7,13 +7,13 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 
 import {IPair} from "./interfaces/IPair.sol";
-import {IRoyaltyManager} from "./interfaces/IRoyaltyManager.sol";
+import {IRoyaltyExecutor} from "./interfaces/IRoyaltyExecutor.sol";
 
 /**
- * @title RoyaltyManager
- * @notice Manages NFT royalties for trading pairs
+ * @title RoyaltyExecutor
+ * @notice Calculates NFT royalties for trading pairs
  */
-contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, UUPSUpgradeable {
+contract RoyaltyExecutor is IRoyaltyExecutor, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     /// @dev pair address => whether the pair is allowed to calc royalty
     mapping(address => bool) public pairRoyaltyAllowed;
 
@@ -73,16 +73,10 @@ contract RoyaltyManager is IRoyaltyManager, Initializable, OwnableUpgradeable, U
         uint256 tokenId,
         uint256 price
     ) internal view returns (address recipient, uint256 amount) {
-        if (IERC2981(nft).supportsInterface(type(IERC2981).interfaceId)) {
-            try IERC2981(nft).royaltyInfo(tokenId, price) returns (address newRecipient, uint256 newAmount) {
-                recipient = newRecipient;
-                amount = newAmount;
-            } catch {
-                // If royalty calculation fails, return zero royalty
-                recipient = address(0);
-                amount = 0;
-            }
-        }
+        try IERC2981(nft).royaltyInfo(tokenId, price) returns (address newRecipient, uint256 newAmount) {
+            recipient = newRecipient;
+            amount = newAmount;
+        } catch {}
     }
 
     /**

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-interface IRoyaltyManager {
+interface IRoyaltyExecutor {
     function calculateRoyalty(
         address pair,
         uint256 tokenId,

@@ -10,7 +10,9 @@ graph TD;
     C-->D[PairERC7007ETH];
     B-->E[NFTCollectionFactory]
     E-->F[ORAERC7007Impl]
-    G[aiOracleManager]-->F
-    H[RoyaltyManager]-->D
-    I[FeeManager]-->D
+    F-->G[RandOracle]
+    F-->J[AIOracle]
+    D-->H[RoyaltyExecutor]
+    D-->I[FeeManager]
+    D-->F
 ```
