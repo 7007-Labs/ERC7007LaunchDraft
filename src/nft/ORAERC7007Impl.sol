@@ -8,16 +8,18 @@ import {ERC721RoyaltyUpgradeable} from
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 import {LibBytes} from "../libraries/LibBytes.sol";
 import {OracleGasEstimator} from "../libraries/OracleGasEstimator.sol";
+import {NFTMetadataRenderer} from "../utils/NFTMetadataRenderer.sol";
 import {IAIOracle} from "../interfaces/IAIOracle.sol";
 import {IRandOracle} from "../interfaces/IRandOracle.sol";
+import {IORAOracleDelegateCaller} from "../interfaces/IORAOracleDelegateCaller.sol";
 import {AIOracleCallbackReceiver} from "../libraries/AIOracleCallbackReceiver.sol";
 import {RandOracleCallbackReceiver} from "../libraries/RandOracleCallbackReceiver.sol";
 import {IORAERC7007} from "../interfaces/IORAERC7007.sol";
 import {IERC7572} from "../interfaces/IERC7572.sol";
-import {NFTMetadataRenderer} from "../utils/NFTMetadataRenderer.sol";
 
 /**
  * @title ORAERC7007Impl
@@ -33,6 +35,7 @@ contract ORAERC7007Impl is
     AIOracleCallbackReceiver,
     RandOracleCallbackReceiver
 {
+    using Address for address payable;
     using BitMaps for BitMaps.BitMap;
     using LibBytes for LibBytes.BytesStorage;
 
@@ -66,9 +69,9 @@ contract ORAERC7007Impl is
     /// @dev tokenId => aiOracleRequestId
     mapping(uint256 tokenId => uint256) public tokenIdToAiOracleRequestId;
 
-    event NewRevealRequest(bytes32 indexed requestId, uint256 randOracleRequestId);
-    event CallAIOracle(bytes32 indexed requestId, uint256 aiOracleRequestId);
-    event NotRequestAIOracle(bytes32 indexed requestId);
+    event NewRevealRequest(bytes32 indexed requestId, uint256 randOracleRequestId, address delegateCaller);
+    event CallAIOracle(bytes32 indexed requestId, uint256 aiOracleRequestId, address delegateCaller);
+    event NotRequestAIOracle(bytes32 indexed requestId, address delegateCaller);
 
     error UnauthorizedCaller();
     error InsufficientRevealFee();
@@ -154,14 +157,13 @@ contract ORAERC7007Impl is
     /**
      * @notice Reveals NFTs using random seeds
      * @param tokenIds Array of token IDs to reveal
+     * @param delegateCaller Contract that will act as proxy to call oracle functions
      * @dev IMPORTANT: Caller MUST ensure:
      * 1. tokenIds array contains no duplicate values
      * 2. all tokenIds have not been processed before calling
      * Failing to meet these requirements may result in unexpected behavior
      */
-    function reveal(
-        uint256[] calldata tokenIds
-    ) external payable {
+    function reveal(uint256[] calldata tokenIds, address delegateCaller) external payable {
         if (msg.sender != operator) revert UnauthorizedCaller();
         uint256 size = tokenIds.length;
         if (size == 0) revert EmptyArray();
@@ -169,19 +171,26 @@ contract ORAERC7007Impl is
         bytes32 requestId = keccak256(abi.encodePacked(tokenIds));
 
         uint256 promptLength = bytes(basePrompt).length;
-        uint64 randOracleGasLimit = OracleGasEstimator.getRandOracleCallbackGasLimit(size, promptLength);
+
         uint64 aiOracleGasLimit = OracleGasEstimator.getAIOracleCallbackGasLimit(size, promptLength);
-        uint256 randOracleFee = _estimateRandOracleFee(randOracleGasLimit);
         uint256 aiOracleFee = _estimateAIOracleFee(size, aiOracleGasLimit);
+
+        uint64 randOracleGasLimit = OracleGasEstimator.getRandOracleCallbackGasLimit(size, promptLength);
+        uint256 randOracleFee = _estimateRandOracleFee(randOracleGasLimit);
 
         if (msg.value < randOracleFee + aiOracleFee) revert InsufficientRevealFee();
 
-        uint256 randOracleRequestId = randOracle.async{value: randOracleFee}(
-            RAND_ORACLE_MODEL_ID, abi.encodePacked(requestId), address(this), randOracleGasLimit, abi.encode(requestId)
+        uint256 randOracleRequestId = _requestRandOracle(
+            delegateCaller,
+            randOracleFee,
+            abi.encodePacked(requestId),
+            address(this),
+            randOracleGasLimit,
+            abi.encode(requestId, delegateCaller)
         );
 
         requestIdToTokenIds[requestId] = tokenIds;
-        emit NewRevealRequest(requestId, randOracleRequestId);
+        emit NewRevealRequest(requestId, randOracleRequestId, delegateCaller);
     }
 
     /**
@@ -260,7 +269,7 @@ contract ORAERC7007Impl is
         uint256 output,
         bytes calldata callbackData
     ) external override onlyRandOracleCallback {
-        bytes32 requestId = abi.decode(callbackData, (bytes32));
+        (bytes32 requestId, address delegateCaller) = abi.decode(callbackData, (bytes32, address));
         uint256[] memory tokenIds = requestIdToTokenIds[requestId];
         uint256 size = tokenIds.length;
         if (size == 0) revert InvalidRequestId();
@@ -279,14 +288,15 @@ contract ORAERC7007Impl is
         uint64 aiOracleGasLimit = OracleGasEstimator.getAIOracleCallbackGasLimit(size, promptLength);
         uint256 aiOracleFee = _estimateAIOracleFee(size, aiOracleGasLimit);
 
-        if (address(this).balance < aiOracleFee) {
-            emit NotRequestAIOracle(requestId);
+        if (!_hasEnoughBalance(delegateCaller, aiOracleFee)) {
+            emit NotRequestAIOracle(requestId, delegateCaller);
             return;
         }
 
         bytes memory batchPrompt = _buildBatchPrompt(seeds);
         bytes memory _callbackData = abi.encode(requestId);
-        uint256 aiOracleRequestId = _requestAIOracle(size, batchPrompt, aiOracleFee, aiOracleGasLimit, _callbackData);
+        uint256 aiOracleRequestId =
+            _requestAIOracle(delegateCaller, aiOracleFee, size, batchPrompt, aiOracleGasLimit, _callbackData);
 
         for (uint256 i = 0; i < size;) {
             tokenIdToAiOracleRequestId[tokenIds[i]] = aiOracleRequestId;
@@ -295,7 +305,7 @@ contract ORAERC7007Impl is
             }
         }
 
-        emit CallAIOracle(requestId, aiOracleRequestId);
+        emit CallAIOracle(requestId, aiOracleRequestId, delegateCaller);
     }
 
     /**
@@ -335,9 +345,7 @@ contract ORAERC7007Impl is
      * @notice Retries AI oracle request
      * @param requestId Original request ID
      */
-    function retryRequestAIOracle(
-        bytes32 requestId
-    ) external payable {
+    function retryRequestAIOracle(bytes32 requestId, address delegateCaller) external payable {
         uint256[] memory tokenIds = requestIdToTokenIds[requestId];
         uint256 size = tokenIds.length;
         if (size == 0) revert InvalidRequestId();
@@ -359,7 +367,8 @@ contract ORAERC7007Impl is
 
         bytes memory batchPrompt = _buildBatchPrompt(seeds);
         bytes memory callbackData = abi.encode(requestId);
-        uint256 aiOracleRequestId = _requestAIOracle(size, batchPrompt, aiOracleFee, aiOracleGasLimit, callbackData);
+        uint256 aiOracleRequestId =
+            _requestAIOracle(delegateCaller, aiOracleFee, size, batchPrompt, aiOracleGasLimit, callbackData);
 
         for (uint256 i = 0; i < size;) {
             tokenIdToAiOracleRequestId[tokenIds[i]] = aiOracleRequestId;
@@ -368,11 +377,6 @@ contract ORAERC7007Impl is
             }
         }
     }
-
-    // todo: 增加一个只能由operator操作的转移合约里eth的接口。
-    // 限制只能所有图开完后才能调用。目前的operator为pair，要在pair中再实现一个函数F1,来调用当前函数F2。
-    // 需要确定F1的调用权限
-    // todo: 使用统一的一个operator来开图
 
     /**
      * @notice Returns token URI with metadata
@@ -447,14 +451,46 @@ contract ORAERC7007Impl is
         return randOracle.estimateFee(RAND_ORACLE_MODEL_ID, "", address(this), gasLimit, "");
     }
 
-    function _requestAIOracle(
-        uint256 size,
-        bytes memory batchPrompt,
+    function _requestRandOracle(
+        address delegateCaller,
         uint256 fee,
+        bytes memory requestEntropy,
+        address callbackAddr,
         uint64 gasLimit,
         bytes memory callbackData
     ) internal returns (uint256) {
-        return aiOracle.requestBatchInference{value: fee}(
+        if (delegateCaller == address(0)) {
+            return
+                randOracle.async{value: fee}(RAND_ORACLE_MODEL_ID, requestEntropy, callbackAddr, gasLimit, callbackData);
+        }
+
+        payable(delegateCaller).sendValue(msg.value);
+        return IORAOracleDelegateCaller(delegateCaller).requestRandOracle(
+            RAND_ORACLE_MODEL_ID, requestEntropy, callbackAddr, gasLimit, callbackData
+        );
+    }
+
+    function _requestAIOracle(
+        address delegateCaller,
+        uint256 fee,
+        uint256 size,
+        bytes memory batchPrompt,
+        uint64 gasLimit,
+        bytes memory callbackData
+    ) internal returns (uint256) {
+        if (delegateCaller == address(0)) {
+            return aiOracle.requestBatchInference{value: fee}(
+                size,
+                modelId,
+                batchPrompt,
+                address(this),
+                gasLimit,
+                callbackData,
+                IAIOracle.DA.Calldata,
+                IAIOracle.DA.Calldata
+            );
+        }
+        return IORAOracleDelegateCaller(delegateCaller).requestAIOracleBatchInference(
             size,
             modelId,
             batchPrompt,
@@ -478,9 +514,6 @@ contract ORAERC7007Impl is
                     + 78 // seed number (max uint256 length in decimal)
                     + 22
             ); // {"prompt":"","seed":}, fixed parts
-        // [{"prompt":"","seed":}, {prompt":"","seed"}] => bytes input
-        // uint256 => de  32bytes => 78bytes
-        // event
         bytes memory batchPrompt = new bytes(estimatedLength);
         uint256 ptr = 0;
         batchPrompt[ptr++] = "[";
@@ -546,6 +579,13 @@ contract ORAERC7007Impl is
             }
         }
         return cids;
+    }
+
+    function _hasEnoughBalance(address delegateCaller, uint256 aiOracleFee) internal view returns (bool) {
+        if (delegateCaller == address(0)) {
+            return address(this).balance >= aiOracleFee;
+        }
+        return delegateCaller.balance >= aiOracleFee;
     }
 
     /* Royalty functions */

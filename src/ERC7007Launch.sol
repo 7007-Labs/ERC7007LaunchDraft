@@ -48,6 +48,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         /// @dev set to 0 to disable presale
         uint64 preSaleEnd;
         /// @notice Merkle root for verifying presale eligibility
+        /// @dev set to bytes32(0) to disable verification
         bytes32 presaleMerkleRoot;
     }
 
@@ -188,7 +189,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
      * @dev Swaps tokens for specific NFT IDs
      * @param pair Address of the trading pair
      * @param tokenIds List of specific NFT IDs to purchase
-     * @param maxNFTNum Maximum number of NFTs to purchase
+     * @param expectedNFTNum Expected number of NFTs to purchase
      * @param minNFTNum Minimum number of NFTs to purchase
      * @param maxExpectedTokenInput Maximum amount of tokens willing to spend
      * @param nftRecipient Address to receive the NFTs
@@ -199,7 +200,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     function swapTokenForSpecificNFTs(
         address pair,
         uint256[] calldata tokenIds,
-        uint256 maxNFTNum,
+        uint256 expectedNFTNum,
         uint256 minNFTNum,
         uint256 maxExpectedTokenInput,
         address nftRecipient,
@@ -207,7 +208,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     ) external payable returns (uint256, uint256) {
         _checkWhitelist(productWhitelistProof);
         return IPair(pair).swapTokenForSpecificNFTs{value: msg.value}(
-            tokenIds, maxNFTNum, minNFTNum, maxExpectedTokenInput, nftRecipient, true, msg.sender
+            tokenIds, expectedNFTNum, minNFTNum, maxExpectedTokenInput, nftRecipient, true, msg.sender
         );
     }
 

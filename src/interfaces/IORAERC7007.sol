@@ -8,7 +8,5 @@ interface IORAERC7007 is IERC7007Updatable {
     function estimateRevealFee(
         uint256 num
     ) external view returns (uint256);
-    function reveal(
-        uint256[] memory tokenIds
-    ) external payable;
+    function reveal(uint256[] memory tokenIds, address delegateCaller) external payable;
 }

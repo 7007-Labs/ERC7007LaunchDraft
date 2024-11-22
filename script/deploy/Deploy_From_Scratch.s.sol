@@ -62,8 +62,22 @@ contract Deploy is ExistingDeploymentParser {
             )
         );
 
-        pairERC7007ETHImpl =
-            new PairERC7007ETH(address(pairFactoryProxy), address(royaltyExecutorProxy), address(feeManagerProxy));
+        oraOracleDelegateCallerImpl = new ORAOracleDelegateCaller(IAIOracle(aiOracle), IRandOracle(randOracle));
+        oraOracleDelegateCallerProxy = ORAOracleDelegateCaller(
+            payable(
+                new ERC1967Proxy(
+                    address(oraOracleDelegateCallerImpl),
+                    abi.encodeWithSelector(ORAOracleDelegateCaller.initialize.selector, admin)
+                )
+            )
+        );
+
+        pairERC7007ETHImpl = new PairERC7007ETH(
+            address(pairFactoryProxy),
+            address(royaltyExecutorProxy),
+            address(feeManagerProxy),
+            address(oraOracleDelegateCallerProxy)
+        );
 
         pairFactoryProxy.initialize(admin, address(pairERC7007ETHImpl));
 

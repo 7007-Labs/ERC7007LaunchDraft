@@ -35,6 +35,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     IPairFactory public immutable factory;
     IRoyaltyExecutor public immutable royaltyManager;
     IFeeManager public immutable feeManager;
+    address public immutable oraOracleDelegateCaller;
 
     address public nft;
     /// @dev Property checker reserved for future functionality
@@ -83,11 +84,13 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
      * @param _factory Address of the pair factory contract
      * @param _royaltyManager Address of the royalty manager contract
      * @param _feeManager Address of the fee manager contract
+     * @param _oraOracleDelegateCaller Address of the ORAOracleDelegateCaller contract
      */
-    constructor(address _factory, address _royaltyManager, address _feeManager) {
+    constructor(address _factory, address _royaltyManager, address _feeManager, address _oraOracleDelegateCaller) {
         factory = IPairFactory(_factory);
         royaltyManager = IRoyaltyExecutor(_royaltyManager);
         feeManager = IFeeManager(_feeManager);
+        oraOracleDelegateCaller = _oraOracleDelegateCaller;
         _disableInitializers();
     }
 
@@ -151,7 +154,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         nextUnIssuedTokenId += presaleNum;
 
         uint256 revealFee = IORAERC7007(nft).estimateRevealFee(presaleNum);
-        IORAERC7007(nft).reveal{value: revealFee}(tokenIds);
+        IORAERC7007(nft).reveal{value: revealFee}(tokenIds, oraOracleDelegateCaller);
 
         uint256 price = salesConfig.presalePrice * presaleNum;
         totalAmount = _swapTokenForSpecificNFTs(tokenIds, price, revealFee, maxExpectedTokenInput, nftRecipient);
@@ -190,7 +193,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
             assembly {
                 mstore(tokenIds, unIssuedNFTNum)
             }
-            IORAERC7007(nft).reveal{value: revealFee}(tokenIds);
+            IORAERC7007(nft).reveal{value: revealFee}(tokenIds, oraOracleDelegateCaller);
             assembly {
                 mstore(tokenIds, nftNum)
             }
@@ -215,7 +218,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     /**
      * @notice Swaps tokens for specific NFT IDs during public sale
      * @param targetTokenIds List of specific NFT IDs to purchase
-     * @param expectedNFTNum Maximum number of NFTs to purchase // todo
+     * @param expectedNFTNum Expected number of NFTs to purchase
      * @param minNFTNum Minimum number of NFTs to purchase
      * @param maxExpectedTokenInput Maximum amount of ETH willing to spend
      * @param nftRecipient Address to receive the NFTs
@@ -282,16 +285,22 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         if (!factory.isRouterAllowed(msg.sender)) revert NotRouter();
 
         if (tokenIds.length == 0) revert ZeroSwapAmount();
-        uint256 price = _bondingCurve().getSellPrice(address(this), tokenIds.length);
-        outputAmount = price;
-        // todo: price - totalFee
+
+        address payable[] memory feeRecipients;
+        uint256[] memory feeAmounts;
+
+        // used for stack too deep
+        {
+            uint256 price = _bondingCurve().getSellPrice(address(this), tokenIds.length);
+            uint256 totalFee;
+            (feeRecipients, feeAmounts, totalFee) = IFeeManager(feeManager).calculateFees(address(this), price);
+            outputAmount = price - totalFee;
+        }
+
         (address payable[] memory royaltyRecipients, uint256[] memory royaltyAmounts, uint256 totalRoyalty) =
             IRoyaltyExecutor(royaltyManager).calculateRoyalty(address(this), tokenIds[0], outputAmount);
 
-        (address payable[] memory feeRecipients, uint256[] memory feeAmounts, uint256 totalFee) =
-            IFeeManager(feeManager).calculateFees(address(this), price);
-
-        outputAmount = price - totalFee - totalRoyalty;
+        outputAmount -= totalRoyalty;
         if (outputAmount < minExpectedTokenOutput) {
             revert OutputTooSmall();
         }

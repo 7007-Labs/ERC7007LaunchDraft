@@ -12,6 +12,7 @@ import {PairFactory} from "../../src/PairFactory.sol";
 import {PairERC7007ETH} from "../../src/PairERC7007ETH.sol";
 import {ERC7007Launch} from "../../src/ERC7007Launch.sol";
 import {SimpleCurve} from "../../src/bonding-curves/SimpleCurve.sol";
+import {ORAOracleDelegateCaller} from "../../src/ORAOracleDelegateCaller.sol";
 
 struct DeployedBondingCurve {
     string name;
@@ -23,6 +24,8 @@ contract ExistingDeploymentParser is Script, Test {
     RoyaltyExecutor public royaltyExecutorImpl;
     FeeManager public feeManagerImpl;
     FeeManager public feeManagerProxy;
+    ORAOracleDelegateCaller public oraOracleDelegateCallerImpl;
+    ORAOracleDelegateCaller public oraOracleDelegateCallerProxy;
     ORAERC7007Impl public oraERC7007Impl;
     NFTCollectionFactory public nftCollectionFactoryImpl;
     NFTCollectionFactory public nftCollectionFactoryProxy;
@@ -44,6 +47,8 @@ contract ExistingDeploymentParser is Script, Test {
         vm.serializeAddress(deployed_addresses, "royaltyExecutorProxy", address(royaltyExecutorProxy));
         vm.serializeAddress(deployed_addresses, "feeManagerImpl", address(feeManagerImpl));
         vm.serializeAddress(deployed_addresses, "feeManagerProxy", address(feeManagerProxy));
+        vm.serializeAddress(deployed_addresses, "oraOracleDelegateCallerImpl", address(oraOracleDelegateCallerImpl));
+        vm.serializeAddress(deployed_addresses, "oraOracleDelegateCallerProxy", address(oraOracleDelegateCallerProxy));
         vm.serializeAddress(deployed_addresses, "oraERC7007Impl", address(oraERC7007Impl));
         vm.serializeAddress(deployed_addresses, "nftCollectionFactoryImpl", address(nftCollectionFactoryImpl));
         vm.serializeAddress(deployed_addresses, "nftCollectionFactoryProxy", address(nftCollectionFactoryProxy));

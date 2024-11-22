@@ -72,7 +72,7 @@ interface IPair {
 
     function swapTokenForSpecificNFTs(
         uint256[] calldata targetTokenIds,
-        uint256 maxNFTNum,
+        uint256 expectedNFTNum,
         uint256 minNFTNum,
         uint256 maxExpectedTokenInput,
         address nftRecipient,
