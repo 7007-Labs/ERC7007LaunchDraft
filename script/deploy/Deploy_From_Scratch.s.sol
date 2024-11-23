@@ -78,8 +78,8 @@ contract Deploy is ExistingDeploymentParser {
             address(feeManagerProxy),
             address(oraOracleDelegateCallerProxy)
         );
-
-        pairFactoryProxy.initialize(admin, address(pairERC7007ETHImpl));
+        pairERC7007ETHBeacon = new UpgradeableBeacon(address(pairERC7007ETHImpl), admin);
+        pairFactoryProxy.initialize(admin, address(pairERC7007ETHBeacon));
 
         erc7007LaunchImpl = new ERC7007Launch(address(nftCollectionFactoryProxy), address(pairFactoryProxy));
         erc7007LaunchProxy = ERC7007Launch(

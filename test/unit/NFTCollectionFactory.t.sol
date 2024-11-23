@@ -6,7 +6,6 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {NFTCollectionFactory} from "../../src/nft/NFTCollectionFactory.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 contract MockERC7007 is OwnableUpgradeable {
     string public basePrompt;
@@ -63,7 +62,7 @@ contract NFTCollectionFactoryTest is Test {
         vm.stopPrank();
     }
 
-    function test_Initialize() public {
+    function test_Initialize() public view {
         assertEq(factory.owner(), owner);
         assertEq(factory.nftCollectionImpl(), address(nftImpl));
     }
@@ -216,16 +215,16 @@ contract NFTCollectionFactoryTest is Test {
         NFTCollectionFactory newImpl = new NFTCollectionFactory();
 
         vm.startPrank(owner);
-        UUPSUpgradeable(factory).upgradeToAndCall(address(newImpl), "");
+        factory.upgradeToAndCall(address(newImpl), "");
         vm.stopPrank();
     }
 
-    function test_Upgrade_OnlyOwner() public {
+    function test_Revert_Upgrade_OnlyOwner() public {
         NFTCollectionFactory newImpl = new NFTCollectionFactory();
 
         vm.startPrank(user);
         vm.expectRevert();
-        UUPSUpgradeable(factory).upgradeToAndCall(address(newImpl), "");
+        factory.upgradeToAndCall(address(newImpl), "");
         vm.stopPrank();
     }
 }

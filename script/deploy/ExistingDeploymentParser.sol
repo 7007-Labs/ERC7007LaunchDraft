@@ -3,6 +3,8 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
 import "forge-std/Test.sol";
+import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+
 import {ORAERC7007Impl} from "../../src/nft/ORAERC7007Impl.sol";
 import {NFTCollectionFactory} from "../../src/nft/NFTCollectionFactory.sol";
 import {SimpleCurve} from "../../src/bonding-curves/SimpleCurve.sol";
@@ -32,6 +34,7 @@ contract ExistingDeploymentParser is Script, Test {
     PairFactory public pairFactoryImpl;
     PairFactory public pairFactoryProxy;
     PairERC7007ETH public pairERC7007ETHImpl;
+    UpgradeableBeacon public pairERC7007ETHBeacon;
     ERC7007Launch public erc7007LaunchImpl;
     ERC7007Launch public erc7007LaunchProxy;
 
@@ -55,6 +58,7 @@ contract ExistingDeploymentParser is Script, Test {
         vm.serializeAddress(deployed_addresses, "pairFactoryImpl", address(pairFactoryImpl));
         vm.serializeAddress(deployed_addresses, "pairFactoryProxy", address(pairFactoryProxy));
         vm.serializeAddress(deployed_addresses, "pairERC7007ETHImpl", address(pairERC7007ETHImpl));
+        vm.serializeAddress(deployed_addresses, "pairERC7007ETHBeacon", address(pairERC7007ETHBeacon));
         vm.serializeAddress(deployed_addresses, "erc7007LaunchImpl", address(erc7007LaunchImpl));
         string memory deployed_addresses_output =
             vm.serializeAddress(deployed_addresses, "erc7007LaunchProxy", address(erc7007LaunchProxy));

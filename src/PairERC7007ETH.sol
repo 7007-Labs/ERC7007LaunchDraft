@@ -140,7 +140,6 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         bool isRouter,
         address routerCaller
     ) external payable nonReentrant onlyPresaleActive returns (uint256 presaleNum, uint256 totalAmount) {
-        // todo: presaleNum rename
         if (!factory.isRouterAllowed(msg.sender)) revert NotRouter();
         presaleNum = Math.min(nftNum, salesConfig.presaleMaxNum - nextUnIssuedTokenId);
         if (presaleNum == 0) revert SoldOut();

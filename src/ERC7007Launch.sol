@@ -52,8 +52,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         bytes32 presaleMerkleRoot;
     }
 
-    uint64 public constant NFT_TOTAL_SUPPLY = 7007; // todo: 此处逻辑待业务确定，是否要统一限制还是使用最大限制
-    uint64 public constant MAX_INIT_BUY_NUM = 10; // todo: 待确认的
+    uint64 public constant NFT_TOTAL_SUPPLY = 7007;
     uint32 public constant MAX_PRESALE_PER_ADDRESS = 1;
 
     address public immutable nftCollectionFactory;
@@ -99,7 +98,6 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         LaunchParams calldata params,
         bytes32[] calldata productWhitelistProof
     ) external payable whenNotPaused {
-        if (params.initialBuyNum == 0 || params.initialBuyNum > MAX_INIT_BUY_NUM) revert InvalidInitialBuyNum();
         _checkWhitelist(productWhitelistProof);
 
         address collection = INFTCollectionFactory(nftCollectionFactory).createNFTCollection(
@@ -131,10 +129,14 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         // Activate NFT collection
         IORAERC7007(collection).activate(NFT_TOTAL_SUPPLY, pair, pair);
 
-        // Perform initial NFT purchase
-        // IPair(pair).swapTokenForNFTs{value: msg.value}(params.initialBuyNum, msg.value, msg.sender, true, msg.sender);
-        // todo: 根据预售情况来区分
-        // 0
+        // When there is no presale, support initial purchases.
+        if (params.preSaleEnd == 0) {
+            _initailBuy(pair, params.initialBuyNum);
+        }
+    }
+
+    function _initailBuy(address pair, uint256 num) internal {
+        IPair(pair).swapTokenForNFTs(num, msg.value, msg.sender, true, msg.sender);
     }
 
     /**
@@ -273,26 +275,15 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         _unpause();
     }
 
-    /**
-     * @notice Calculates the total fee required for launching an NFT collection
-     * @dev The total fee consists of:
-     *      1. Initial NFT purchase price (initialBuyNum * presalePrice)
-     *      2. Combined fee (1% fee + 1% protocol fee = 2% total)
-     *      3. Random oracle fee based on gas estimation for callback
-     *      4. AI oracle fee based on gas estimation and model parameters
-     * @param params LaunchParams struct containing launch configuration
-     * @param aiOracle Address of the AI oracle contract
-     * @param randOracle Address of the random oracle contract
-     * @return Total fee in wei required for launching the collection
-     */
-    function getLaunchFee(
+    function getInitialBuyAmount(
         LaunchParams calldata params,
         address aiOracle,
         address randOracle
     ) external view returns (uint256) {
-        uint256 price = params.initialBuyNum * params.presalePrice;
+        // todo: 这里的获取初始购买的amount时，要用到bondingCurve，但目前bondingCurve依赖于pair。
+        // 考虑修改bondingCurve获取price的参数
+        uint256 price = ICurve(params.bondingCurve).getBuyPrice(address(0), params.initialBuyNum);
         uint256 fee = price * 200 / 10_000;
-
         uint256 promptLength = bytes(params.prompt).length;
 
         uint64 randOracleGaslimit = OracleGasEstimator.getRandOracleCallbackGasLimit(params.initialBuyNum, promptLength);
