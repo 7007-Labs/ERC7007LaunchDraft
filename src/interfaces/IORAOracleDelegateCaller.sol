@@ -4,6 +4,10 @@ pragma solidity ^0.8.23;
 import {IAIOracle} from "./IAIOracle.sol";
 
 interface IORAOracleDelegateCaller {
+    function addToAllowlist(
+        address _address
+    ) external;
+
     function requestRandOracle(
         uint256 modelId,
         bytes calldata requestEntropy,

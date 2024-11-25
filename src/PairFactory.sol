@@ -11,6 +11,7 @@ import {PairType} from "./enums/PairType.sol";
 import {IPairFactory} from "./interfaces/IPairFactory.sol";
 import {IPair} from "./interfaces/IPair.sol";
 import {ICurve} from "./interfaces/ICurve.sol";
+import {IORAOracleDelegateCaller} from "./interfaces/IORAOracleDelegateCaller.sol";
 import {PairERC7007ETH} from "./PairERC7007ETH.sol";
 
 /**
@@ -18,6 +19,9 @@ import {PairERC7007ETH} from "./PairERC7007ETH.sol";
  * @notice Factory contract for creating and managing ERC7007-ETH trading pairs.
  */
 contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpgradeable {
+    /// @dev Address of the ORAOracleDelegateCaller contract that delegates calls to the oracle
+    IORAOracleDelegateCaller public immutable oraOracleDelegateCaller;
+
     /// @dev Address of the beacon contract that stores the implementation logic for ERC7007-ETH pairs
     address public erc7007ETHBeacon;
 
@@ -45,7 +49,10 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
     }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
+    constructor(
+        IORAOracleDelegateCaller _oraOracleDelegateCaller
+    ) {
+        oraOracleDelegateCaller = _oraOracleDelegateCaller;
         _disableInitializers();
     }
 
@@ -85,6 +92,9 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
             if (!bondingCurveAllowed[address(_salesConfig.bondingCurve)]) revert BondingCurveNotAllowed();
 
             PairERC7007ETH(pair).initialize(_owner, _nft, _propertyChecker, _nftTotalSupply, _salesConfig);
+
+            oraOracleDelegateCaller.addToAllowlist(_nft);
+
             emit NewPair(pair, _nft);
         } else {
             revert WrongPairType();

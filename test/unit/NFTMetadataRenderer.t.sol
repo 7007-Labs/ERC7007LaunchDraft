@@ -8,7 +8,7 @@ import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 contract NFTMetadataRendererTest is Test {
     function setUp() public {}
 
-    function test_tokenMediaData() public {
+    function test_tokenMediaData() public pure {
         string memory s1 = NFTMetadataRenderer.tokenMediaData("https://example.com/image.png", "");
         assertEq(s1, 'image": "https://example.com/image.png", "');
         string memory s2 =
@@ -16,7 +16,7 @@ contract NFTMetadataRendererTest is Test {
         assertEq(s2, 'image": "https://example.com/image.png", "animation_url": "https://example.com/animation.png", "');
     }
 
-    function test_createMetadataJSON() public {
+    function test_createMetadataJSON() public pure {
         string memory mediaData = NFTMetadataRenderer.tokenMediaData("https://example.com/image.png", "");
 
         string memory aigcInfo =
@@ -30,7 +30,7 @@ contract NFTMetadataRendererTest is Test {
         );
     }
 
-    function test_encodeContractURIJSON() public {
+    function test_encodeContractURIJSON() public pure {
         string memory data = NFTMetadataRenderer.encodeContractURIJSON("name", "description");
         assertEq(data, "data:application/json;base64,eyJuYW1lIjogIm5hbWUiLCAiZGVzY3JpcHRpb24iOiAiZGVzY3JpcHRpb24ifQ==");
     }

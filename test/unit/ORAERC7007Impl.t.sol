@@ -19,6 +19,7 @@ contract ORAERC7007ImplTest is Test {
     address defaultNFTOwner = makeAddr("defaultNFTOwner");
     address operator = makeAddr("operator");
     address user = makeAddr("user");
+    address approved = makeAddr("approved");
     uint256 totalSupply = 7707;
 
     string name = "Test NFT";
@@ -98,6 +99,55 @@ contract ORAERC7007ImplTest is Test {
         (address receiver, uint256 royaltyAmount) = nft.royaltyInfo(0, 10_000);
         assertEq(receiver, owner);
         assertEq(royaltyAmount, 250); // 2.5% of 10000
+    }
+
+    function test_Approve() public {
+        nft.activate(totalSupply, defaultNFTOwner, operator);
+
+        vm.prank(defaultNFTOwner);
+        nft.approve(approved, 0);
+
+        assertEq(nft.getApproved(0), approved);
+
+        // Test that approved address can transfer the token
+        vm.prank(approved);
+        nft.transferFrom(defaultNFTOwner, user, 0);
+        assertEq(nft.ownerOf(0), user);
+
+        // Approval should be cleared after transfer
+        assertEq(nft.getApproved(0), address(0));
+    }
+
+    function test_Revert_Approve_IfNotOwner() public {
+        nft.activate(totalSupply, defaultNFTOwner, operator);
+
+        vm.prank(user);
+        vm.expectRevert();
+        nft.approve(approved, 0);
+    }
+
+    function test_SetApprovalForAll() public {
+        nft.activate(totalSupply, defaultNFTOwner, operator);
+
+        vm.prank(defaultNFTOwner);
+        nft.setApprovalForAll(approved, true);
+
+        assertTrue(nft.isApprovedForAll(defaultNFTOwner, approved));
+
+        // Test approved address can transfer any token
+        vm.prank(approved);
+        nft.transferFrom(defaultNFTOwner, user, 0);
+        assertEq(nft.ownerOf(0), user);
+
+        // Test removing approval
+        vm.prank(defaultNFTOwner);
+        nft.setApprovalForAll(approved, false);
+        assertFalse(nft.isApprovedForAll(defaultNFTOwner, approved));
+
+        // Test approved address can no longer transfer after approval removed
+        vm.prank(approved);
+        vm.expectRevert();
+        nft.transferFrom(defaultNFTOwner, user, 1);
     }
 
     function test_Revert_SetDefaultRoyalty_IfNotOwner() public {

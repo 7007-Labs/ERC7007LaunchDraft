@@ -11,6 +11,7 @@ import {PairFactory} from "../../src/PairFactory.sol";
 import {PairERC7007ETH} from "../../src/PairERC7007ETH.sol";
 import {IPair} from "../../src/interfaces/IPair.sol";
 import {ICurve} from "../../src/interfaces/ICurve.sol";
+import {IORAOracleDelegateCaller} from "../../src/interfaces/IORAOracleDelegateCaller.sol";
 import {PairType} from "../../src/enums/PairType.sol";
 
 contract MockPairERC7007ETH is Initializable, OwnableUpgradeable {
@@ -34,6 +35,12 @@ contract MockPairERC7007ETH is Initializable, OwnableUpgradeable {
     }
 }
 
+contract MockORAOracleDelegateCaller {
+    function addToAllowlist(
+        address _address
+    ) external {}
+}
+
 contract PairFactoryTest is Test {
     PairFactory public factory;
     address public owner = makeAddr("owner");
@@ -48,7 +55,9 @@ contract PairFactoryTest is Test {
     function setUp() public {
         erc7007ETHImpl = address(new MockPairERC7007ETH());
         erc7007ETHBeacon = address(new UpgradeableBeacon(erc7007ETHImpl, owner));
-        PairFactory impl = new PairFactory();
+
+        MockORAOracleDelegateCaller mockDelegateCaller = new MockORAOracleDelegateCaller();
+        PairFactory impl = new PairFactory(IORAOracleDelegateCaller(address(mockDelegateCaller)));
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), "");
         factory = PairFactory(address(proxy));
         factory.initialize(owner, erc7007ETHBeacon);
@@ -166,7 +175,8 @@ contract PairFactoryTest is Test {
     }
 
     function test_UpgradeAuthorization() public {
-        address newImpl = address(new PairFactory());
+        MockORAOracleDelegateCaller mockDelegateCaller = new MockORAOracleDelegateCaller();
+        address newImpl = address(new PairFactory(IORAOracleDelegateCaller(address(mockDelegateCaller))));
 
         vm.prank(user);
         vm.expectRevert();

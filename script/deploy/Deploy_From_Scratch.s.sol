@@ -49,7 +49,17 @@ contract Deploy is ExistingDeploymentParser {
             )
         );
 
-        pairFactoryImpl = new PairFactory();
+        oraOracleDelegateCallerImpl = new ORAOracleDelegateCaller(IAIOracle(aiOracle), IRandOracle(randOracle));
+        oraOracleDelegateCallerProxy = ORAOracleDelegateCaller(
+            payable(
+                new ERC1967Proxy(
+                    address(oraOracleDelegateCallerImpl),
+                    abi.encodeWithSelector(ORAOracleDelegateCaller.initialize.selector, admin)
+                )
+            )
+        );
+
+        pairFactoryImpl = new PairFactory(oraOracleDelegateCallerProxy);
         pairFactoryProxy = PairFactory(address(new ERC1967Proxy(address(pairFactoryImpl), "")));
 
         feeManagerImpl = new FeeManager();
@@ -58,16 +68,6 @@ contract Deploy is ExistingDeploymentParser {
                 new ERC1967Proxy(
                     address(feeManagerImpl),
                     abi.encodeWithSelector(FeeManager.initialize.selector, admin, protocolFeeRecipient)
-                )
-            )
-        );
-
-        oraOracleDelegateCallerImpl = new ORAOracleDelegateCaller(IAIOracle(aiOracle), IRandOracle(randOracle));
-        oraOracleDelegateCallerProxy = ORAOracleDelegateCaller(
-            payable(
-                new ERC1967Proxy(
-                    address(oraOracleDelegateCallerImpl),
-                    abi.encodeWithSelector(ORAOracleDelegateCaller.initialize.selector, admin)
                 )
             )
         );
@@ -110,6 +110,7 @@ contract Deploy is ExistingDeploymentParser {
     function _configPermission() internal {
         pairFactoryProxy.setAllowlistAllowed(address(erc7007LaunchProxy), true);
         nftCollectionFactoryProxy.setAllowlistAllowed(address(erc7007LaunchProxy), true);
+        oraOracleDelegateCallerProxy.setOperator(address(pairFactoryProxy));
     }
 
     function _transferOwnership() internal {}
