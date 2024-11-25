@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 
 import {PairFactory} from "../../src/PairFactory.sol";
 import {PairERC7007ETH} from "../../src/PairERC7007ETH.sol";
@@ -32,6 +33,16 @@ contract MockPairERC7007ETH is Initializable, OwnableUpgradeable {
         propertyChecker = _propertyChecker;
         nftTotalSupply = _nftTotalSupply;
         salesConfig = _salesConfig;
+    }
+
+    function version() external pure virtual returns (uint256) {
+        return 1;
+    }
+}
+
+contract MockPairERC7007ETH_V2 is MockPairERC7007ETH {
+    function version() external pure override returns (uint256) {
+        return 2;
     }
 }
 
@@ -184,5 +195,23 @@ contract PairFactoryTest is Test {
 
         vm.prank(owner);
         factory.upgradeToAndCall(newImpl, "");
+    }
+
+    function test_UpgradePairImpl() public {
+        bytes memory params = _buildPairParams(bondingCurve);
+
+        vm.prank(user);
+        address pair = factory.createPairERC7007ETH(user, nft, PairType.LAUNCH, propertyChecker, params);
+        assertEq(MockPairERC7007ETH(pair).version(), 1);
+
+        address newERC7007ETHImpl = address(new MockPairERC7007ETH_V2());
+        vm.prank(user);
+        vm.expectRevert();
+        UpgradeableBeacon(erc7007ETHBeacon).upgradeTo(newERC7007ETHImpl);
+
+        vm.prank(owner);
+        UpgradeableBeacon(erc7007ETHBeacon).upgradeTo(newERC7007ETHImpl);
+
+        assertEq(MockPairERC7007ETH(pair).version(), 2);
     }
 }

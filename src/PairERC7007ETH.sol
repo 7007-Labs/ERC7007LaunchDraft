@@ -33,7 +33,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     uint16 public constant DEFAULT_PROTOCOL_FEE_BPS = 100;
 
     IPairFactory public immutable factory;
-    IRoyaltyExecutor public immutable royaltyManager;
+    IRoyaltyExecutor public immutable royaltyExecutor;
     IFeeManager public immutable feeManager;
     address public immutable oraOracleDelegateCaller;
 
@@ -82,13 +82,13 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
     /**
      * @param _factory Address of the pair factory contract
-     * @param _royaltyManager Address of the royalty manager contract
+     * @param _royaltyExecutor Address of the royalty executor contract
      * @param _feeManager Address of the fee manager contract
      * @param _oraOracleDelegateCaller Address of the ORAOracleDelegateCaller contract
      */
-    constructor(address _factory, address _royaltyManager, address _feeManager, address _oraOracleDelegateCaller) {
+    constructor(address _factory, address _royaltyExecutor, address _feeManager, address _oraOracleDelegateCaller) {
         factory = IPairFactory(_factory);
-        royaltyManager = IRoyaltyExecutor(_royaltyManager);
+        royaltyExecutor = IRoyaltyExecutor(_royaltyExecutor);
         feeManager = IFeeManager(_feeManager);
         oraOracleDelegateCaller = _oraOracleDelegateCaller;
         _disableInitializers();
@@ -297,7 +297,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         }
 
         (address payable[] memory royaltyRecipients, uint256[] memory royaltyAmounts, uint256 totalRoyalty) =
-            IRoyaltyExecutor(royaltyManager).calculateRoyalty(address(this), tokenIds[0], outputAmount);
+            IRoyaltyExecutor(royaltyExecutor).calculateRoyalty(address(this), tokenIds[0], outputAmount);
 
         outputAmount -= totalRoyalty;
         if (outputAmount < minExpectedTokenOutput) {
@@ -357,7 +357,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
         (,, uint256 totalFee) = IFeeManager(feeManager).calculateFees(address(this), price);
 
-        (,, royaltyAmount) = IRoyaltyExecutor(royaltyManager).calculateRoyalty(address(this), assetId, price);
+        (,, royaltyAmount) = IRoyaltyExecutor(royaltyExecutor).calculateRoyalty(address(this), assetId, price);
 
         revealFee = IORAERC7007(nft).estimateRevealFee(numItems);
         inputAmount = price + totalFee + royaltyAmount + revealFee;
@@ -386,7 +386,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
         (,, uint256 totalFee) = IFeeManager(feeManager).calculateFees(address(this), price);
 
-        (,, royaltyAmount) = IRoyaltyExecutor(royaltyManager).calculateRoyalty(address(this), assetId, price);
+        (,, royaltyAmount) = IRoyaltyExecutor(royaltyExecutor).calculateRoyalty(address(this), assetId, price);
         // r / (r + p)
         //
         inputAmount = price + totalFee + royaltyAmount + revealFee;
@@ -407,7 +407,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         (,, uint256 totalFee) = IFeeManager(feeManager).calculateFees(address(this), price);
 
         outputAmount = price - totalFee;
-        (,, royaltyAmount) = IRoyaltyExecutor(royaltyManager).calculateRoyalty(address(this), assetId, outputAmount);
+        (,, royaltyAmount) = IRoyaltyExecutor(royaltyExecutor).calculateRoyalty(address(this), assetId, outputAmount);
         outputAmount -= royaltyAmount;
     }
 
@@ -451,7 +451,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
             IFeeManager(feeManager).calculateFees(address(this), price);
 
         (address payable[] memory royaltyRecipients, uint256[] memory royaltyAmounts, uint256 totalRoyalty) =
-            IRoyaltyExecutor(royaltyManager).calculateRoyalty(address(this), tokenIds[0], price);
+            IRoyaltyExecutor(royaltyExecutor).calculateRoyalty(address(this), tokenIds[0], price);
 
         totalAmount = price + totalFee + totalRoyalty + revealFee;
 
