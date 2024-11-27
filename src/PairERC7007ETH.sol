@@ -210,7 +210,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         assembly {
             mstore(tokenIds, totalNFTNum)
         }
-        uint256 price = _bondingCurve().getBuyPrice(address(this), totalNFTNum);
+        uint256 price = _bondingCurve().getBuyPrice(_totalSupply(), totalNFTNum);
         totalAmount = _swapTokenForSpecificNFTs(tokenIds, price, revealFee, maxExpectedTokenInput, nftRecipient);
     }
 
@@ -261,7 +261,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         }
         if (totalNFTNum < minNFTNum) revert OutputTooSmall();
 
-        uint256 price = _bondingCurve().getBuyPrice(address(this), totalNFTNum);
+        uint256 price = _bondingCurve().getBuyPrice(_totalSupply(), totalNFTNum);
         totalAmount = _swapTokenForSpecificNFTs(tokenIds, price, 0, maxExpectedTokenInput, nftRecipient);
     }
 
@@ -290,7 +290,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
         // used for stack too deep
         {
-            uint256 price = _bondingCurve().getSellPrice(address(this), tokenIds.length);
+            uint256 price = _bondingCurve().getSellPrice(_totalSupply(), tokenIds.length);
             uint256 totalFee;
             (feeRecipients, feeAmounts, totalFee) = IFeeManager(feeManager).calculateFees(address(this), price);
             outputAmount = price - totalFee;
@@ -382,7 +382,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
             unRevealedNFTNum = Math.min(numItems, nftTotalSupply - nextUnIssuedTokenId);
             revealFee = IORAERC7007(nft).estimateRevealFee(unRevealedNFTNum);
         }
-        uint256 price = _bondingCurve().getBuyPrice(address(this), numItems);
+        uint256 price = _bondingCurve().getBuyPrice(_totalSupply(), numItems);
 
         (,, uint256 totalFee) = IFeeManager(feeManager).calculateFees(address(this), price);
 
@@ -403,7 +403,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         uint256 assetId,
         uint256 numItems
     ) external view returns (uint256 outputAmount, uint256 royaltyAmount) {
-        uint256 price = _bondingCurve().getSellPrice(address(this), numItems);
+        uint256 price = _bondingCurve().getSellPrice(_totalSupply(), numItems);
         (,, uint256 totalFee) = IFeeManager(feeManager).calculateFees(address(this), price);
 
         outputAmount = price - totalFee;
@@ -544,5 +544,9 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
     function _bondingCurve() internal view returns (ICurve) {
         return salesConfig.bondingCurve;
+    }
+
+    function _totalSupply() internal view returns (uint256) {
+        return nftTotalSupply - IERC721(nft).balanceOf(address(this));
     }
 }

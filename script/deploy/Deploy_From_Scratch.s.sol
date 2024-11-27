@@ -92,8 +92,8 @@ contract Deploy is ExistingDeploymentParser {
     }
 
     function _deployBondCurves() internal {
-        SimpleCurve curve = new SimpleCurve();
-        bondingCurves.push(DeployedBondingCurve({name: type(SimpleCurve).name, addr: address(curve)}));
+        ExponentialCurve curve = new ExponentialCurve();
+        bondingCurves.push(DeployedBondingCurve({name: type(ExponentialCurve).name, addr: address(curve)}));
     }
 
     function _configORA() internal {

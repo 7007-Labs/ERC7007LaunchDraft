@@ -43,10 +43,10 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         /// @notice Maximum total NFTs that can be purchased during presale
         uint32 presaleMaxNum;
         /// @notice Presale start timestamp
-        uint64 preSaleStart;
+        uint64 presaleStart;
         /// @notice Presale end timestamp
         /// @dev set to 0 to disable presale
-        uint64 preSaleEnd;
+        uint64 presaleEnd;
         /// @notice Merkle root for verifying presale eligibility
         /// @dev set to bytes32(0) to disable verification
         bytes32 presaleMerkleRoot;
@@ -63,7 +63,9 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     event WhitelistMerkleRootUpdated(bytes32 newRoot);
     event WhitelistStateChanged(bool isEnabled);
 
+    error OnlyNonPresaleModeAllowed();
     error InvalidInitialBuyNum();
+    error ZeroAddress();
 
     /**
      * @dev Constructor to set immutable addresses
@@ -107,9 +109,9 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         IPair.SalesConfig memory salesConfig = IPair.SalesConfig({
             maxPresalePurchasePerAddress: MAX_PRESALE_PER_ADDRESS,
             presaleMaxNum: params.presaleMaxNum,
-            presaleStart: params.preSaleStart,
-            presaleEnd: params.preSaleEnd,
-            publicSaleStart: params.preSaleEnd,
+            presaleStart: params.presaleStart,
+            presaleEnd: params.presaleEnd,
+            publicSaleStart: params.presaleEnd,
             presalePrice: params.presalePrice,
             bondingCurve: ICurve(params.bondingCurve),
             presaleMerkleRoot: params.presaleMerkleRoot
@@ -129,8 +131,8 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         // Activate NFT collection
         IORAERC7007(collection).activate(NFT_TOTAL_SUPPLY, pair, pair);
 
-        // When there is no presale, support initial purchases.
-        if (params.preSaleEnd == 0) {
+        // Only in non presale model
+        if (params.presaleEnd == 0) {
             _initailBuy(pair, params.initialBuyNum);
         }
     }
@@ -275,15 +277,26 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         _unpause();
     }
 
+    /**
+     * @dev Calculates the initial buy cost for a launch
+     * @param params Launch parameters
+     * @param aiOracle Address of the AI oracle
+     * @param randOracle Address of the random oracle
+     * @return Amount of tokens spent
+     */
     function getInitialBuyAmount(
         LaunchParams calldata params,
         address aiOracle,
         address randOracle
     ) external view returns (uint256) {
-        // todo: 这里的获取初始购买的amount时，要用到bondingCurve，但目前bondingCurve依赖于pair。
-        // 考虑修改bondingCurve获取price的参数
-        uint256 price = ICurve(params.bondingCurve).getBuyPrice(address(0), params.initialBuyNum);
+        if (params.presaleEnd > 0) revert OnlyNonPresaleModeAllowed();
+        if (params.initialBuyNum == 0) revert InvalidInitialBuyNum();
+        if (aiOracle == address(0)) revert ZeroAddress();
+        if (randOracle == address(0)) revert ZeroAddress();
+
+        uint256 price = ICurve(params.bondingCurve).getBuyPrice(0, params.initialBuyNum);
         uint256 fee = price * 200 / 10_000;
+
         uint256 promptLength = bytes(params.prompt).length;
 
         uint64 randOracleGaslimit = OracleGasEstimator.getRandOracleCallbackGasLimit(params.initialBuyNum, promptLength);

@@ -7,13 +7,12 @@ import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/Upgradeabl
 
 import {ORAERC7007Impl} from "../../src/nft/ORAERC7007Impl.sol";
 import {NFTCollectionFactory} from "../../src/nft/NFTCollectionFactory.sol";
-import {SimpleCurve} from "../../src/bonding-curves/SimpleCurve.sol";
+import {ExponentialCurve} from "../../src/bonding-curves/ExponentialCurve.sol";
 import {RoyaltyExecutor} from "../../src/RoyaltyExecutor.sol";
 import {FeeManager} from "../../src/FeeManager.sol";
 import {PairFactory} from "../../src/PairFactory.sol";
 import {PairERC7007ETH} from "../../src/PairERC7007ETH.sol";
 import {ERC7007Launch} from "../../src/ERC7007Launch.sol";
-import {SimpleCurve} from "../../src/bonding-curves/SimpleCurve.sol";
 import {ORAOracleDelegateCaller} from "../../src/ORAOracleDelegateCaller.sol";
 
 struct DeployedBondingCurve {
