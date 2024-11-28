@@ -26,7 +26,8 @@ contract ORAOracleDelegateCaller is IORAOracleDelegateCaller, Initializable, Own
     /// @dev address => whether the address is allowed to call oracle functions
     mapping(address => bool) public allowlist;
 
-    event TokenWithdrawal(uint256 amount);
+    event ReceivedPayment(address sender, uint256 amount);
+    event TokenWithdrawal(address recipient, uint256 amount);
 
     error ZeroAddress();
     error UnauthorizedCaller();
@@ -42,7 +43,9 @@ contract ORAOracleDelegateCaller is IORAOracleDelegateCaller, Initializable, Own
         _disableInitializers();
     }
 
-    receive() external payable {}
+    receive() external payable {
+        emit ReceivedPayment(msg.sender, msg.value);
+    }
 
     function initialize(
         address _owner
@@ -96,7 +99,7 @@ contract ORAOracleDelegateCaller is IORAOracleDelegateCaller, Initializable, Own
 
     function withdrawETH(address recipient, uint256 amount) external onlyOwner {
         payable(recipient).sendValue(amount);
-        emit TokenWithdrawal(amount);
+        emit TokenWithdrawal(recipient, amount);
     }
 
     /**

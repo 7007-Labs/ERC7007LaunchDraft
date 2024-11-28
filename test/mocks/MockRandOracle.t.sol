@@ -20,6 +20,12 @@ contract MockRandOracle {
         gasPrice = tx.gasprice;
     }
 
+    function setGasPrice(
+        uint256 _gasPrice
+    ) external {
+        gasPrice = _gasPrice;
+    }
+
     function async(
         uint256 modelId,
         bytes calldata requestEntropy,

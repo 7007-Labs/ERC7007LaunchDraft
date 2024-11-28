@@ -16,6 +16,7 @@ interface IPair {
         /// @notice Presale start timestamp
         uint64 presaleStart;
         /// @notice Presale end timestamp
+        /// @dev set to 0 to disable presale
         uint64 presaleEnd;
         /// @notice Public sale start timestamp
         uint64 publicSaleStart;
@@ -24,6 +25,7 @@ interface IPair {
         /// @notice The address of the bonding curve contract
         ICurve bondingCurve;
         /// @notice Merkle root for verifying presale eligibility
+        /// @dev set to bytes32(0) to disable verfication
         bytes32 presaleMerkleRoot;
     }
 
@@ -72,7 +74,6 @@ interface IPair {
 
     function swapTokenForSpecificNFTs(
         uint256[] calldata targetTokenIds,
-        uint256 expectedNFTNum,
         uint256 minNFTNum,
         uint256 maxExpectedTokenInput,
         address nftRecipient,

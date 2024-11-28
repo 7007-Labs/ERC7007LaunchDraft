@@ -53,11 +53,12 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     event PresaleMerkleRootUpdate(bytes32 newRoot);
 
     error ZeroAddress();
+    error InvalidNFTTotalSupply();
     error TradeFeeTooLarge();
     error ZeroSwapAmount();
     error InputTooLarge();
     error InsufficientInput();
-    error TokenIdUnrevealed();
+    error TokenIdUnIssued();
     error NotRouter();
     error OutputTooSmall();
     error PresaleInactive();
@@ -114,13 +115,15 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         uint256 _nftTotalSupply,
         SalesConfig calldata _salesConfig
     ) external initializer {
+        if (_nft == address(0)) revert ZeroAddress();
+        if (_nftTotalSupply == 0) revert InvalidNFTTotalSupply();
+        _checkSalesConfig(_salesConfig);
+
         __Ownable_init(_owner);
-        require(_nft != address(0), "Invalid NFT address");
-        require(_nftTotalSupply > 0, "Invalid NFT total supply");
+
         nft = _nft;
         propertyChecker = _propertyChecker;
         nftTotalSupply = _nftTotalSupply;
-        _checkSalesConfig(_salesConfig);
         salesConfig = _salesConfig;
 
         feeManager.registerPair(_owner, DEFAULT_FEE_BPS, DEFAULT_PROTOCOL_FEE_BPS);
@@ -222,16 +225,15 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     /**
      * @notice Swaps tokens for specific NFT IDs during public sale
      * @param targetTokenIds List of specific NFT IDs to purchase
-     * @param expectedNFTNum Expected number of NFTs to purchase
      * @param minNFTNum Minimum number of NFTs to purchase
      * @param maxExpectedTokenInput Maximum amount of ETH willing to spend
      * @param nftRecipient Address to receive the NFTs
      * @return totalNFTNum Number of NFTs purchased
      * @return totalAmount Total ETH amount spent
+     * @dev all NFTs in targetTokenIds must have been issued
      */
     function swapTokenForSpecificNFTs(
         uint256[] calldata targetTokenIds,
-        uint256 expectedNFTNum,
         uint256 minNFTNum,
         uint256 maxExpectedTokenInput,
         address nftRecipient,
@@ -252,19 +254,12 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
             totalNFTNum += 1;
         }
 
-        if (totalNFTNum < expectedNFTNum) {
-            uint256[] memory newTokenIds = _selectNFTs(expectedNFTNum - totalNFTNum);
-            for (uint256 i = 0; i < newTokenIds.length; i++) {
-                tokenIds[totalNFTNum] = newTokenIds[i];
-                totalNFTNum += 1;
-            }
-        }
         if (totalNFTNum == 0) revert SoldOut();
+        if (totalNFTNum < minNFTNum) revert OutputTooSmall();
 
         assembly {
             mstore(tokenIds, totalNFTNum)
         }
-        if (totalNFTNum < minNFTNum) revert OutputTooSmall();
 
         uint256 price = _bondingCurve().getBuyPrice(_totalSupply(), totalNFTNum);
         totalAmount = _swapTokenForSpecificNFTs(tokenIds, price, 0, maxExpectedTokenInput, nftRecipient);
@@ -439,9 +434,20 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     function _checkSalesConfig(
         SalesConfig calldata _salesConfig
     ) internal view {
-        /* todo: 检查参数是否合理
-         * todo: 如何检查initPrice和preSaleMaxNum是否合理，用bondingCurve, 需要bondingCurve根据preSaleMaxNum计算一个最小的initPrice
-         */
+        if (address(_salesConfig.bondingCurve) == address(0)) revert ZeroAddress();
+        require(_salesConfig.publicSaleStart >= _salesConfig.presaleEnd, "Public sale must start after presale ends");
+
+        if (_salesConfig.presaleEnd > 0) {
+            // presale mode
+            require(_salesConfig.presaleMaxNum > 0, "PresaleMaxNum should not be zero");
+            require(_salesConfig.maxPresalePurchasePerAddress > 0, "maxPresalePurchasePerAddress should not be zero");
+
+            uint256 minimumAmount = _salesConfig.bondingCurve.getBuyPrice(0, _salesConfig.presaleMaxNum);
+            uint256 amount = _salesConfig.presalePrice * _salesConfig.presaleMaxNum;
+            require(amount >= minimumAmount, "The price and maxNum of presale is invalid");
+        } else {
+            // not in presale mode, don't need some checks
+        }
     }
 
     function _swapTokenForSpecificNFTs(
@@ -477,7 +483,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         uint256 nftNum = tokenIds.length;
         for (uint256 i = 0; i < nftNum; i++) {
             uint256 tokenId = tokenIds[i];
-            if (tokenId >= nextUnIssuedTokenId) revert TokenIdUnrevealed();
+            if (tokenId >= nextUnIssuedTokenId) revert TokenIdUnIssued();
             saleOutNFTs.set(tokenId);
             IERC721(nft).transferFrom(address(this), nftRecipient, tokenId);
         }
@@ -507,7 +513,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
             revert PresaleTooManyForAddress();
         }
 
-        bytes32 leaf = keccak256(abi.encodePacked(_from));
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(_from))));
 
         if (
             salesConfig.presaleMerkleRoot != bytes32(0)

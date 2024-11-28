@@ -13,7 +13,7 @@ abstract contract Whitelist {
     }
 
     function verifyWhitelistAddress(address addr, bytes32[] calldata proof) internal view returns (bool) {
-        bytes32 leaf = keccak256(abi.encodePacked(addr));
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(addr))));
         return MerkleProof.verifyCalldata(proof, whitelistMerkleRoot, leaf);
     }
 }

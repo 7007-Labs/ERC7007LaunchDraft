@@ -35,6 +35,12 @@ contract MockAIOracle {
         _;
     }
 
+    function setGasPrice(
+        uint256 _gasPrice
+    ) external {
+        gasPrice = _gasPrice;
+    }
+
     function addModel(uint256 modelId, uint256 fee) external {
         modelExists[modelId] = true;
         modelFee[modelId] = fee;
