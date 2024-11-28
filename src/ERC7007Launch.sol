@@ -144,10 +144,6 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         }
     }
 
-    function _initailBuy(address pair, uint256 num) internal returns (uint256 amount) {
-        (, amount) = IPair(pair).swapTokenForNFTs{value: msg.value}(num, msg.value, msg.sender, true, msg.sender);
-    }
-
     /**
      * @dev Purchases NFTs during presale period
      * @param pair Address of the trading pair
@@ -218,7 +214,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         uint256 maxExpectedTokenInput,
         address nftRecipient,
         bytes32[] calldata productWhitelistProof
-    ) external payable returns (uint256 purchasedNftNum, uint256 amount) {
+    ) external payable whenNotPaused returns (uint256 purchasedNftNum, uint256 amount) {
         _checkWhitelist(productWhitelistProof);
         (purchasedNftNum, amount) = IPair(pair).swapTokenForSpecificNFTs{value: msg.value}(
             tokenIds, minNFTNum, maxExpectedTokenInput, nftRecipient, true, msg.sender
@@ -318,6 +314,10 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         uint256 aiOracleFee = IAIOracle(aiOracle).estimateFeeBatch(modelId, aiOracleGaslimit, params.initialBuyNum);
 
         return price + fee + randOracleFee + aiOracleFee;
+    }
+
+    function _initailBuy(address pair, uint256 num) internal returns (uint256 amount) {
+        (, amount) = IPair(pair).swapTokenForNFTs{value: msg.value}(num, msg.value, msg.sender, true, msg.sender);
     }
 
     /**

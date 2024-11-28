@@ -86,6 +86,8 @@ contract ORAERC7007Impl is
     error EmptyArray();
     error InsufficientBalance();
     error RequestAlreadyProcessed();
+    error AigcDataExists();
+    error WrongAIOracleCallback();
     error InvalidTotalSupply();
     error InvalidDataLength();
     error InvalidCIDLength();
@@ -226,8 +228,7 @@ contract ORAERC7007Impl is
         bytes memory aigcData,
         bytes memory proof
     ) external onlySelf {
-        require(_aigcDataOf[tokenId].isEmpty(), "AigcData exists");
-
+        if (!_aigcDataOf[tokenId].isEmpty()) revert AigcDataExists();
         promptToTokenId[prompt] = tokenId;
         _aigcDataOf[tokenId].set(aigcData);
         emit AigcData(tokenId, prompt, aigcData, proof);
@@ -329,7 +330,7 @@ contract ORAERC7007Impl is
         if (size == 0) revert InvalidRequestId();
 
         bytes[] memory cids = _decodeOutput(output);
-        require(size == cids.length, "Wrong output");
+        if (size != cids.length) revert WrongAIOracleCallback();
 
         string memory _basePrompt = basePrompt;
         for (uint256 i = 0; i < size;) {
