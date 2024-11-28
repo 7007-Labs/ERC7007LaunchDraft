@@ -392,8 +392,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         (,, uint256 totalFee) = IFeeManager(feeManager).calculateFees(address(this), price);
 
         (,, royaltyAmount) = IRoyaltyExecutor(royaltyExecutor).calculateRoyalty(address(this), assetId, price);
-        // r / (r + p)
-        //
+
         inputAmount = price + totalFee + royaltyAmount + revealFee;
     }
 

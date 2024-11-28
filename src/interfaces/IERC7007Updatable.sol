@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "./IERC7007.sol";
-
 /**
  * @title ERC7007 Token Standard, optional updatable extension
+ * Note: the ERC-165 identifier for this interface is 0x3f37dce2.
  */
-interface IERC7007Updatable is IERC7007 {
+interface IERC7007Updatable {
     /**
      * @dev Update the `aigcData` of `prompt`.
      */

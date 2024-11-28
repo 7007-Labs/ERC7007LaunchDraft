@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 /**
  * @dev Required interface of an ERC7007 compliant contract.
+ * Note: the ERC-165 identifier for this interface is 0x702c55a6.
  */
 interface IERC7007 is IERC165, IERC721 {
     /**
@@ -20,14 +21,19 @@ interface IERC7007 is IERC165, IERC721 {
      * - `proof` should not include `aigcData` to save gas.
      * - verify(`prompt`, `aigcData`, `proof`) should return true for zkML scenario.
      */
-    function addAigcData(uint256 tokenId, bytes calldata prompt, bytes calldata aigcData, bytes calldata proof)
-        external;
+    function addAigcData(
+        uint256 tokenId,
+        bytes calldata prompt,
+        bytes calldata aigcData,
+        bytes calldata proof
+    ) external;
 
     /**
      * @dev Verify the `prompt`, `aigcData` and `proof`.
      */
-    function verify(bytes calldata prompt, bytes calldata aigcData, bytes calldata proof)
-        external
-        view
-        returns (bool success);
+    function verify(
+        bytes calldata prompt,
+        bytes calldata aigcData,
+        bytes calldata proof
+    ) external view returns (bool success);
 }

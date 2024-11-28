@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import {IERC2309} from "@openzeppelin/contracts/interfaces/IERC2309.sol";
 import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ERC721RoyaltyUpgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721RoyaltyUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -12,12 +13,14 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 import {LibBytes} from "../libraries/LibBytes.sol";
 import {OracleGasEstimator} from "../libraries/OracleGasEstimator.sol";
+import {AIOracleCallbackReceiver} from "../libraries/AIOracleCallbackReceiver.sol";
+import {RandOracleCallbackReceiver} from "../libraries/RandOracleCallbackReceiver.sol";
 import {NFTMetadataRenderer} from "../utils/NFTMetadataRenderer.sol";
 import {IAIOracle} from "../interfaces/IAIOracle.sol";
 import {IRandOracle} from "../interfaces/IRandOracle.sol";
 import {IORAOracleDelegateCaller} from "../interfaces/IORAOracleDelegateCaller.sol";
-import {AIOracleCallbackReceiver} from "../libraries/AIOracleCallbackReceiver.sol";
-import {RandOracleCallbackReceiver} from "../libraries/RandOracleCallbackReceiver.sol";
+import {IERC7007} from "../interfaces/IERC7007.sol";
+import {IERC7007Updatable} from "../interfaces/IERC7007Updatable.sol";
 import {IORAERC7007} from "../interfaces/IORAERC7007.sol";
 import {IERC7572} from "../interfaces/IERC7572.sol";
 
@@ -411,6 +414,13 @@ contract ORAERC7007Impl is
      */
     function contractURI() external view returns (string memory) {
         return NFTMetadataRenderer.encodeContractURIJSON(name(), description);
+    }
+
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC721RoyaltyUpgradeable, IERC165) returns (bool) {
+        return super.supportsInterface(interfaceId) || interfaceId == type(IERC7007).interfaceId
+            || interfaceId == type(IERC7007Updatable).interfaceId || interfaceId == type(IERC7572).interfaceId;
     }
 
     /**
