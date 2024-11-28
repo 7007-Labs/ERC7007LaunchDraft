@@ -50,9 +50,9 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
     event SwapNFTInPair(uint256 amountOut, uint256[] ids);
     event SwapNFTOutPair(uint256 amountIn, uint256[] ids);
-
     event PresaleMerkleRootUpdate(bytes32 newRoot);
 
+    error ZeroAddress();
     error TradeFeeTooLarge();
     error ZeroSwapAmount();
     error InputTooLarge();
@@ -87,6 +87,11 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
      * @param _oraOracleDelegateCaller Address of the ORAOracleDelegateCaller contract
      */
     constructor(address _factory, address _royaltyExecutor, address _feeManager, address _oraOracleDelegateCaller) {
+        if (_factory == address(0)) revert ZeroAddress();
+        if (_royaltyExecutor == address(0)) revert ZeroAddress();
+        if (_feeManager == address(0)) revert ZeroAddress();
+        if (_oraOracleDelegateCaller == address(0)) revert ZeroAddress();
+
         factory = IPairFactory(_factory);
         royaltyExecutor = IRoyaltyExecutor(_royaltyExecutor);
         feeManager = IFeeManager(_feeManager);
@@ -519,6 +524,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     ) internal view returns (uint256[] memory tokenIds) {
         tokenIds = new uint256[](num);
         uint256 mod = nextUnIssuedTokenId;
+        // use a weak random number, in order to ensure that NFTs with larger IDs can also be selected
         uint256 start = uint256(blockhash(block.number)) % mod;
         uint256 count = 0;
         for (uint256 i = 0; i < nextUnIssuedTokenId; i++) {

@@ -42,6 +42,7 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
     event AllowlistStatusUpdate(address indexed addr, bool isAllowed);
     event NewPair(address indexed pair, address nft);
 
+    error ZeroAddress();
     error UnauthorizedCaller();
     error WrongPairType();
     error BondingCurveNotAllowed();
@@ -55,6 +56,7 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
     constructor(
         IORAOracleDelegateCaller _oraOracleDelegateCaller
     ) {
+        if (address(_oraOracleDelegateCaller) == address(0)) revert ZeroAddress();
         oraOracleDelegateCaller = _oraOracleDelegateCaller;
         _disableInitializers();
     }
@@ -65,6 +67,8 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
      * @param _erc7007ETHBeacon Address of the beacon contract for ERC7007-ETH pairs
      */
     function initialize(address _owner, address _erc7007ETHBeacon) external initializer {
+        if (_erc7007ETHBeacon == address(0)) revert ZeroAddress();
+
         __Ownable_init(_owner);
         erc7007ETHBeacon = _erc7007ETHBeacon;
     }
@@ -87,6 +91,8 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
         address _propertyChecker,
         bytes calldata params
     ) external payable onlyAllowlist returns (address pair) {
+        if (_nft == address(0)) revert ZeroAddress();
+
         if (_pairType == PairType.LAUNCH) {
             pair = _deployPair(_pairType, _nft);
             (uint256 _nftTotalSupply, IPair.SalesConfig memory _salesConfig) =

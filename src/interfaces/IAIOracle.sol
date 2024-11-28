@@ -1,6 +1,5 @@
-// SampleContract.sol
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.23;
 
 interface IAIOracle {
     /// @notice AICallbackRequest without DA for compatibling with old version
@@ -95,7 +94,9 @@ interface IAIOracle {
     function estimateFee(uint256 modelId, uint256 gasLimit) external view returns (uint256);
     function estimateFeeBatch(uint256 modelId, uint256 gasLimit, uint256 batchSize) external view returns (uint256);
 
-    function isFinalized(uint256 requestId) external view returns (bool);
+    function isFinalized(
+        uint256 requestId
+    ) external view returns (bool);
 
     enum DA {
         Calldata,

@@ -73,6 +73,9 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
      * @param _pairFactory Address of the pair factory
      */
     constructor(address _nftCollectionFactory, address _pairFactory) {
+        if (_nftCollectionFactory == address(0)) revert ZeroAddress();
+        if (_pairFactory == address(0)) revert ZeroAddress();
+
         nftCollectionFactory = _nftCollectionFactory;
         pairFactory = _pairFactory;
         _disableInitializers();
@@ -80,12 +83,12 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
 
     /**
      * @dev Initializes the contract with an owner and enables whitelist by default
-     * @param owner Address to be set as the contract owner
+     * @param _owner Address to be set as the contract owner
      */
     function initialize(
-        address owner
+        address _owner
     ) external initializer {
-        __Ownable_init(owner);
+        __Ownable_init(_owner);
         __Pausable_init();
         isEnableWhitelist = true;
     }

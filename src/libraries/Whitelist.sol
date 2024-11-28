@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
 abstract contract Whitelist {
-    bytes32 public whitelistMerkleRoot = 0x0000000000000000000000000000000000000000000000000000000000000000;
+    bytes32 public whitelistMerkleRoot = bytes32(0);
 
     function _setWhitelistMerkleRoot(
         bytes32 root
