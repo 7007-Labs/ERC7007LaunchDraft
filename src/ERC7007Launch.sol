@@ -66,6 +66,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     event WhitelistMerkleRootUpdated(bytes32 newRoot);
     event WhitelistStateChanged(bool isEnabled);
 
+    error CallerNotWhitelisted();
     error OnlyNonPresaleModeAllowed();
     error InvalidInitialBuyNum();
     error ZeroAddress();
@@ -164,7 +165,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         bytes32[] calldata productWhitelistProof
     ) external payable whenNotPaused returns (uint256 purchasedNftNum, uint256 amount) {
         _checkWhitelist(productWhitelistProof);
-        (nftNum, amount) = IPair(pair).purchasePresale{value: msg.value}(
+        (purchasedNftNum, amount) = IPair(pair).purchasePresale{value: msg.value}(
             nftNum, maxExpectedTokenInput, nftRecipient, presaleMerkleProof, true, msg.sender
         );
         _refundTokenToSender(amount);
@@ -312,7 +313,6 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         uint64 aiOracleGaslimit = OracleGasEstimator.getAIOracleCallbackGasLimit(params.initialBuyNum, promptLength);
         uint256 modelId = abi.decode(params.providerParams, (uint256));
         uint256 aiOracleFee = IAIOracle(aiOracle).estimateFeeBatch(modelId, aiOracleGaslimit, params.initialBuyNum);
-
         return price + fee + randOracleFee + aiOracleFee;
     }
 
@@ -328,7 +328,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         bytes32[] calldata proof
     ) internal view {
         if (isEnableWhitelist) {
-            require(verifyWhitelistAddress(msg.sender, proof), "Address not whitelisted");
+            if (!verifyWhitelistAddress(msg.sender, proof)) revert CallerNotWhitelisted();
         }
     }
 
