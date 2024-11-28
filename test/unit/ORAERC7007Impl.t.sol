@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 import {ORAERC7007Impl} from "../../src/nft/ORAERC7007Impl.sol";
 import {IAIOracle} from "../../src/interfaces/IAIOracle.sol";
@@ -12,8 +13,8 @@ import {MockRandOracle} from "../mocks/MockRandOracle.t.sol";
 
 contract ORAERC7007ImplTest is Test {
     ORAERC7007Impl public nft;
-    IAIOracle public mockAiOracle;
-    IRandOracle public mockRandOracle;
+    MockAIOracle public mockAiOracle;
+    MockRandOracle public mockRandOracle;
 
     address owner = makeAddr("owner");
     address defaultNFTOwner = makeAddr("defaultNFTOwner");
@@ -27,13 +28,13 @@ contract ORAERC7007ImplTest is Test {
     string description = "Test NFT Collection";
     bool nsfw = true;
     string defaultPrompt = "Test prompt";
-    uint256 defaultModelId = 1;
+    uint256 defaultModelId = 50;
 
     function setUp() public {
-        mockAiOracle = IAIOracle(address(new MockAIOracle()));
-        mockRandOracle = IRandOracle(address(new MockRandOracle()));
+        mockAiOracle = new MockAIOracle();
+        mockRandOracle = new MockRandOracle();
 
-        ORAERC7007Impl impl = new ORAERC7007Impl(mockAiOracle, mockRandOracle);
+        ORAERC7007Impl impl = new ORAERC7007Impl(IAIOracle(address(mockAiOracle)), IRandOracle(address(mockRandOracle)));
         address proxy = Clones.clone(address(impl));
         nft = ORAERC7007Impl(proxy);
 
@@ -182,5 +183,79 @@ contract ORAERC7007ImplTest is Test {
     function test_Revert_Activate_WithZeroSupply() public {
         vm.expectRevert();
         nft.activate(0, defaultNFTOwner, operator);
+    }
+
+    function test_Reveal() public {
+        nft.activate(totalSupply, defaultNFTOwner, operator);
+
+        mockAiOracle.setGasPrice(1 gwei);
+        mockRandOracle.setGasPrice(1 gwei);
+
+        uint256 fee = nft.estimateRevealFee(3);
+        vm.deal(operator, fee);
+        uint256[] memory tokenIds = new uint256[](3);
+        tokenIds[0] = 0;
+        tokenIds[1] = 700;
+        tokenIds[2] = 5555;
+        vm.prank(operator);
+
+        nft.reveal{value: fee}(tokenIds, address(0));
+
+        vm.warp(block.timestamp + 1);
+        mockRandOracle.invoke(1, abi.encode(block.timestamp), "");
+        for (uint256 i; i < tokenIds.length; i++) {
+            uint256 tokenId = tokenIds[i];
+            assertNotEq(nft.seedOf(tokenId), 0);
+        }
+
+        vm.warp(block.timestamp + 3);
+        mockAiOracle.invokeCallback(1, mockAiOracle.makeOutput(3));
+
+        string memory tokenURI = nft.tokenURI(0);
+        string memory expectedURI =
+            "data:application/json;base64,eyJuYW1lIjogIlRlc3QgTkZUIiwgImRlc2NyaXB0aW9uIjogIlRlc3QgTkZUIENvbGxlY3Rpb24iLCAiaW1hZ2UiOiAiaXBmczovL1FtWTNHdU5jc2NtekQ2Q25WaktXZXFmU1BhVlhiMmdjazc1SFVydHE4WWYzc3UiLCAicHJvbXB0IjogIlRlc3QgcHJvbXB0IiwgImFpZ2NfdHlwZSI6ICJpbWFnZSIsICJhaWdjX2RhdGEiOiAiUW1ZM0d1TmNzY216RDZDblZqS1dlcWZTUGFWWGIyZ2NrNzVIVXJ0cThZZjNzdSIsICJwcm9vZl90eXBlIjogImZyYXVkIiwgInByb3ZpZGVyIjogIjB4NTYxNWRlYjc5OGJiM2U0ZGZhMDEzOWRmYTFiM2Q0MzNjYzIzYjcyZiIsICJtb2RlbElkIjogIjUwIn0=";
+        assertEq(tokenURI, expectedURI);
+
+        bytes memory prompt =
+            abi.encodePacked('{"prompt":"', nft.basePrompt, '","seed":', Strings.toString(nft.seedOf(0)), "}");
+        bool isVerified = nft.verify(prompt, nft.aigcDataOf(0), "");
+        assertTrue(isVerified);
+    }
+
+    function test_RetryRequestAIOracle() public {
+        nft.activate(totalSupply, defaultNFTOwner, operator);
+
+        mockAiOracle.setGasPrice(1 gwei);
+        mockRandOracle.setGasPrice(1 gwei);
+
+        uint256 fee = nft.estimateRevealFee(3);
+        vm.deal(operator, fee);
+        uint256[] memory tokenIds = new uint256[](3);
+        tokenIds[0] = 0;
+        tokenIds[1] = 700;
+        tokenIds[2] = 5555;
+        vm.prank(operator);
+
+        nft.reveal{value: fee}(tokenIds, address(0));
+
+        bytes32 requestId = keccak256(abi.encodePacked(tokenIds));
+
+        vm.warp(block.timestamp + 2);
+        // the gasPrice will be very high, making it impossible to call the aiOracle
+        mockAiOracle.setGasPrice(10 gwei);
+        vm.expectEmit();
+        emit ORAERC7007Impl.NotRequestAIOracle(requestId, address(0));
+        mockRandOracle.invoke(1, abi.encode(block.timestamp), "");
+
+        vm.warp(block.timestamp + 2);
+        vm.expectRevert(ORAERC7007Impl.InsufficientBalance.selector);
+        nft.retryRequestAIOracle(requestId, address(0));
+
+        vm.warp(block.timestamp + 2);
+        mockAiOracle.setGasPrice(1 gwei);
+        nft.retryRequestAIOracle(requestId, address(0));
+        assertEq(nft.tokenIdToAiOracleRequestId(0), 1);
+
+        mockAiOracle.invokeCallback(1, mockAiOracle.makeOutput(3));
     }
 }

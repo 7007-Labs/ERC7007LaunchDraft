@@ -311,7 +311,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         uint256 promptLength = bytes(params.prompt).length;
 
         uint64 randOracleGaslimit = OracleGasEstimator.getRandOracleCallbackGasLimit(params.initialBuyNum, promptLength);
-        uint256 randOracleFee = IRandOracle(randOracle).estimateFee(0, "", address(this), randOracleGaslimit, "");
+        uint256 randOracleFee = IRandOracle(randOracle).estimateFee(0, randOracleGaslimit);
 
         uint64 aiOracleGaslimit = OracleGasEstimator.getAIOracleCallbackGasLimit(params.initialBuyNum, promptLength);
         uint256 modelId = abi.decode(params.providerParams, (uint256));

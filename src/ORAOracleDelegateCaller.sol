@@ -28,6 +28,7 @@ contract ORAOracleDelegateCaller is IORAOracleDelegateCaller, Initializable, Own
 
     event ReceivedPayment(address sender, uint256 amount);
     event TokenWithdrawal(address recipient, uint256 amount);
+    event OperatorUpdate(address newOperator);
 
     error ZeroAddress();
     error UnauthorizedCaller();
@@ -61,7 +62,7 @@ contract ORAOracleDelegateCaller is IORAOracleDelegateCaller, Initializable, Own
         uint64 gasLimit,
         bytes calldata callbackData
     ) external payable onlyAllowlist returns (uint256) {
-        uint256 fee = randOracle.estimateFee(modelId, "", callbackAddr, gasLimit, callbackData);
+        uint256 fee = randOracle.estimateFee(modelId, gasLimit);
         return randOracle.async{value: fee}(modelId, requestEntropy, callbackAddr, gasLimit, callbackData);
     }
 
@@ -95,6 +96,7 @@ contract ORAOracleDelegateCaller is IORAOracleDelegateCaller, Initializable, Own
     ) external onlyOwner {
         if (newOperator == address(0)) revert ZeroAddress();
         operator = newOperator;
+        emit OperatorUpdate(newOperator);
     }
 
     function withdrawETH(address recipient, uint256 amount) external onlyOwner {

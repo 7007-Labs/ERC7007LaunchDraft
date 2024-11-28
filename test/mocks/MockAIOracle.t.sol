@@ -26,6 +26,7 @@ contract MockAIOracle {
         modelExists[50] = true;
         modelFee[50] = 0.0003 ether;
         gasPrice = tx.gasprice;
+        seq = 1;
     }
 
     modifier ifModelExists(

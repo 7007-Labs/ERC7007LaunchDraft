@@ -63,14 +63,14 @@ contract ORAERC7007Impl is
     /// @dev tokenId => seed
     mapping(uint256 tokenId => uint256) public seedOf;
 
-    /// @dev tokenId => aigcData
-    mapping(uint256 tokenId => LibBytes.BytesStorage) public aigcDataOf;
-
     /// @dev requestId => tokenIds
     mapping(bytes32 requestId => uint256[]) public requestIdToTokenIds;
 
     /// @dev tokenId => aiOracleRequestId
     mapping(uint256 tokenId => uint256) public tokenIdToAiOracleRequestId;
+
+    /// @dev tokenId => aigcData
+    mapping(uint256 tokenId => LibBytes.BytesStorage) private _aigcDataOf;
 
     event NewRevealRequest(bytes32 indexed requestId, uint256 randOracleRequestId, address delegateCaller);
     event CallAIOracle(bytes32 indexed requestId, uint256 aiOracleRequestId, address delegateCaller);
@@ -79,6 +79,7 @@ contract ORAERC7007Impl is
     error UnauthorizedCaller();
     error InsufficientRevealFee();
     error ZeroAddress();
+    error EmptyPrompt();
     error AlreadyActivated();
     error InvalidRequestId();
     error InvalidTokenId();
@@ -117,6 +118,7 @@ contract ORAERC7007Impl is
         __ERC721Royalty_init();
         __Ownable_init(_owner);
         _initializeMetadata(metadataInitializer);
+        if (bytes(prompt).length == 0) revert EmptyPrompt();
 
         basePrompt = prompt;
         modelId = _modelId;
@@ -224,10 +226,10 @@ contract ORAERC7007Impl is
         bytes memory aigcData,
         bytes memory proof
     ) external onlySelf {
-        require(aigcDataOf[tokenId].isEmpty(), "AigcData exists");
+        require(_aigcDataOf[tokenId].isEmpty(), "AigcData exists");
 
         promptToTokenId[prompt] = tokenId;
-        aigcDataOf[tokenId].set(aigcData);
+        _aigcDataOf[tokenId].set(aigcData);
         emit AigcData(tokenId, prompt, aigcData, proof);
         emit MetadataUpdate(tokenId);
     }
@@ -245,7 +247,7 @@ contract ORAERC7007Impl is
     ) external view override returns (bool) {
         uint256 tokenId = promptToTokenId[prompt];
         uint256 aiOracleRequestId = tokenIdToAiOracleRequestId[tokenId];
-        bytes memory currentAigcData = aigcDataOf[tokenId].get();
+        bytes memory currentAigcData = _aigcDataOf[tokenId].get();
         return aiOracle.isFinalized(aiOracleRequestId) && keccak256(aigcData) == keccak256(currentAigcData);
     }
 
@@ -256,7 +258,7 @@ contract ORAERC7007Impl is
      */
     function update(bytes memory prompt, bytes memory aigcData) external onlySelf {
         uint256 tokenId = promptToTokenId[prompt];
-        aigcDataOf[tokenId].set(aigcData);
+        _aigcDataOf[tokenId].set(aigcData);
 
         emit Update(tokenId, prompt, aigcData);
         emit MetadataUpdate(tokenId);
@@ -333,7 +335,7 @@ contract ORAERC7007Impl is
         for (uint256 i = 0; i < size;) {
             uint256 tokenId = tokenIds[i];
             bytes memory prompt = _buildPrompt(_basePrompt, seedOf[tokenId]);
-            if (aigcDataOf[tokenId].isEmpty()) {
+            if (_aigcDataOf[tokenId].isEmpty()) {
                 this.addAigcData(tokenId, prompt, cids[i], bytes(""));
             } else {
                 this.update(prompt, cids[i]);
@@ -358,7 +360,9 @@ contract ORAERC7007Impl is
         uint64 aiOracleGasLimit = OracleGasEstimator.getAIOracleCallbackGasLimit(size, promptLength);
         uint256 aiOracleFee = _estimateAIOracleFee(size, aiOracleGasLimit);
 
-        if (address(this).balance < aiOracleFee) revert InsufficientBalance();
+        if (!_hasEnoughBalance(delegateCaller, aiOracleFee)) {
+            revert InsufficientBalance();
+        }
 
         uint256[] memory seeds = new uint256[](size);
         for (uint256 i = 0; i < size;) {
@@ -391,21 +395,27 @@ contract ORAERC7007Impl is
     ) public view override returns (string memory) {
         if (tokenId >= totalSupply) revert InvalidTokenId();
 
-        string memory imageUrl = aigcDataOf[tokenId].isEmpty()
+        string memory imageUrl = _aigcDataOf[tokenId].isEmpty()
             ? DEFAULT_IMAGE_URL
-            : string.concat("ipfs://", string(aigcDataOf[tokenId].get()));
+            : string.concat("ipfs://", string(_aigcDataOf[tokenId].get()));
 
         string memory mediaData = NFTMetadataRenderer.tokenMediaData(imageUrl, "");
         string memory aigcInfo = NFTMetadataRenderer.tokenAIGCInfo(
             basePrompt,
             AIGC_TYPE,
-            string(aigcDataOf[tokenId].get()),
+            string(_aigcDataOf[tokenId].get()),
             PROOF_TYPE,
             Strings.toHexString(address(aiOracle)),
             Strings.toString(modelId)
         );
 
         return NFTMetadataRenderer.createMetadata(name(), description, mediaData, aigcInfo);
+    }
+
+    function aigcDataOf(
+        uint256 tokenId
+    ) external view returns (bytes memory) {
+        return _aigcDataOf[tokenId].get();
     }
 
     /**
@@ -458,7 +468,7 @@ contract ORAERC7007Impl is
     function _estimateRandOracleFee(
         uint64 gasLimit
     ) internal view returns (uint256) {
-        return randOracle.estimateFee(RAND_ORACLE_MODEL_ID, "", address(this), gasLimit, "");
+        return randOracle.estimateFee(RAND_ORACLE_MODEL_ID, gasLimit);
     }
 
     function _requestRandOracle(

@@ -18,6 +18,7 @@ contract MockRandOracle {
 
     constructor() {
         gasPrice = tx.gasprice;
+        seq = 1;
     }
 
     function setGasPrice(
@@ -76,13 +77,7 @@ contract MockRandOracle {
         bytes32 _publicEntropy
     ) external {}
 
-    function estimateFee(
-        uint256 modelId,
-        bytes calldata, /* input */
-        address, /* callbackAddr */
-        uint64 gasLimit,
-        bytes calldata /* callbackData */
-    ) external view returns (uint256) {
+    function estimateFee(uint256 modelId, uint64 gasLimit) external view returns (uint256) {
         require(modelId == 0, "wrong modelId");
         uint256 protocolFee = 0;
         uint256 modelFee = 0.000003 ether;

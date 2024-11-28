@@ -279,6 +279,20 @@ contract PairERC7007ETHTest is Test {
         assertEq(nftNum, 1);
     }
 
+    function test_GetBuyNFTQuote() public {
+        _initPairWithDefaultConfig();
+
+        (uint256 inputAmount, uint256 revealFee, uint256 royaltyAmount) = pair.getBuyNFTQuote(0, 1, false);
+        assertEq(revealFee, revealFeePerNFT);
+        uint256 expectedRoyaltyAmount = bondingCurveFixedPrice * 500 / 10_000;
+        assertEq(royaltyAmount, expectedRoyaltyAmount);
+        uint256 fee = bondingCurveFixedPrice * 200 / 10_000;
+        assertEq(inputAmount, bondingCurveFixedPrice + fee + royaltyAmount + revealFee);
+
+        (uint256 inputAmount2,,) = pair.getBuyNFTQuote(0, 1, true);
+        assertEq(inputAmount2, bondingCurveFixedPrice + fee + royaltyAmount);
+    }
+
     function test_SwapTokenForNFTs_unIssued() public {
         _initPairWithDefaultConfig();
 
@@ -423,6 +437,17 @@ contract PairERC7007ETHTest is Test {
         assertEq(nftNum, 2);
     }
 
+    function test_GetSellNFTQuote() public {
+        _initPairWithDefaultConfig();
+
+        (uint256 outputAmount, uint256 royaltyAmount) = pair.getSellNFTQuote(0, 1);
+        uint256 price = bondingCurveFixedPrice;
+        uint256 fee = price * 200 / 10_000;
+        uint256 expectedRoyaltyAmount = (price - fee) * 500 / 10_000;
+        assertEq(expectedRoyaltyAmount, royaltyAmount);
+        assertEq(outputAmount, price - fee - expectedRoyaltyAmount);
+    }
+
     function test_SwapNFTsForToken() public {
         _initPairWithDefaultConfig();
 
@@ -499,5 +524,58 @@ contract PairERC7007ETHTest is Test {
         vm.deal(router, amount);
         vm.prank(router);
         pair.swapTokenForNFTs{value: amount}(nftNum, amount, user2, true, user2);
+    }
+
+    function test_Revert_BuyOrSellNFT_IFSaleInactive() public {
+        _initPairWithPresale(bytes32(0));
+        vm.deal(router, 1 ether);
+
+        vm.prank(router);
+        vm.expectRevert(PairERC7007ETH.SaleInactive.selector);
+        pair.swapTokenForNFTs{value: 1 ether}(
+            1, // nftNum
+            1 ether, // maxExpectedTokenInput
+            user, // nftRecipient
+            true, // isRouter
+            user // routerCaller
+        );
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 0;
+        vm.prank(router);
+        vm.expectRevert(PairERC7007ETH.SaleInactive.selector);
+        pair.swapTokenForSpecificNFTs{value: 1 ether}(
+            tokenIds,
+            0,
+            1 ether,
+            user, // nftRecipient
+            true, // isRouter
+            user // routerCaller
+        );
+
+        vm.prank(router);
+        vm.expectRevert(PairERC7007ETH.SaleInactive.selector);
+        pair.swapNFTsForToken(
+            tokenIds,
+            1,
+            payable(user), // nftRecipient
+            true, // isRouter
+            user // routerCaller
+        );
+    }
+
+    function testFuzz_BuyAndSell_RandomPrice(
+        uint256 price
+    ) public {
+        price = bound(price, 1, 1 ether);
+        _initPairWithDefaultConfig();
+
+        vm.deal(router, 10 ether);
+        vm.prank(router);
+        curve.setFixedPrice(price);
+
+        (uint256 amount,,) = pair.getBuyNFTQuote(0, 3, false);
+        vm.prank(router);
+        pair.swapTokenForNFTs{value: amount}(3, amount, user, true, user);
     }
 }

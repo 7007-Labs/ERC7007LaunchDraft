@@ -12,6 +12,12 @@ contract MockCurve is ICurve {
         fixedPrice = _fixedPrice;
     }
 
+    function setFixedPrice(
+        uint256 _fixedPrice
+    ) external {
+        fixedPrice = _fixedPrice;
+    }
+
     function getBuyPrice(uint256, /*totalSupply*/ uint256 numItems) external view returns (uint256) {
         return numItems * fixedPrice;
     }
