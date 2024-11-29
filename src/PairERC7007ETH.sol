@@ -9,6 +9,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import {LibBit} from "@solady/utils/LibBit.sol";
 
 import {PairType} from "./enums/PairType.sol";
 import {PairVariant} from "./enums/PairVariant.sol";
@@ -18,7 +19,6 @@ import {IRoyaltyExecutor} from "./interfaces/IRoyaltyExecutor.sol";
 import {IPairFactory} from "./interfaces/IPairFactory.sol";
 import {IFeeManager} from "./interfaces/IFeeManager.sol";
 import {IORAERC7007} from "./interfaces/IORAERC7007.sol";
-import {BitMapHelpers} from "./libraries/BitMapHelpers.sol";
 
 /**
  * @title PairERC7007ETH
@@ -27,7 +27,6 @@ import {BitMapHelpers} from "./libraries/BitMapHelpers.sol";
 contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using Address for address payable;
     using BitMaps for BitMaps.BitMap;
-    using BitMapHelpers for BitMaps.BitMap;
 
     /// @dev Fee in basis points (1%)
     uint16 public constant DEFAULT_FEE_BPS = 100;
@@ -530,7 +529,32 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     function _selectNFTs(
         uint256 num
     ) internal view returns (uint256[] memory tokenIds) {
-        return saleOutNFTs.randomSelectUnset(num, nextUnIssuedTokenId);
+        tokenIds = new uint256[](num);
+
+        uint256 bucketCount = (nextUnIssuedTokenId + 255) >> 8;
+        uint256 startBucket = uint256(blockhash(block.number)) % bucketCount;
+        uint256 count = 0;
+
+        uint256 lastBucketBits = nextUnIssuedTokenId & 0xff;
+        uint256 lastBucketMask = lastBucketBits > 0 ? (1 << lastBucketBits) - 1 : type(uint256).max;
+
+        for (uint256 i; i < bucketCount && count < num; i++) {
+            uint256 bucket = (startBucket + i) % bucketCount;
+            uint256 data = saleOutNFTs._data[bucket];
+
+            uint256 mask = bucket == bucketCount - 1 ? lastBucketMask : type(uint256).max;
+
+            uint256 availableIndexes = (~data) & mask;
+            while (availableIndexes != 0 && count < num) {
+                uint256 tokenId = (bucket << 8) | LibBit.ffs(availableIndexes);
+                tokenIds[count] = tokenId;
+                count++;
+                availableIndexes &= (availableIndexes - 1);
+            }
+        }
+        assembly {
+            mstore(tokenIds, count)
+        }
     }
 
     /// @dev Transfers NFTs from sender to pair contract

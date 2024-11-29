@@ -10,8 +10,8 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {LibBytes} from "@solady/utils/LibBytes.sol";
 
-import {LibBytes} from "../libraries/LibBytes.sol";
 import {OracleGasEstimator} from "../libraries/OracleGasEstimator.sol";
 import {AIOracleCallbackReceiver} from "../libraries/AIOracleCallbackReceiver.sol";
 import {RandOracleCallbackReceiver} from "../libraries/RandOracleCallbackReceiver.sol";
