@@ -195,8 +195,6 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
         uint256 revealFee = 0;
         if (unIssuedNFTNum > 0) {
             revealFee = IORAERC7007(nft).estimateRevealFee(unIssuedNFTNum);
-
-            nextUnIssuedTokenId += unIssuedNFTNum;
             assembly {
                 mstore(tokenIds, unIssuedNFTNum)
             }
@@ -213,11 +211,15 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
                 tokenIds[i + unIssuedNFTNum] = issuedTokenIds[i];
             }
         }
+
         totalNFTNum = unIssuedNFTNum + issuedNFTNum;
         if (totalNFTNum == 0) revert SoldOut();
         assembly {
             mstore(tokenIds, totalNFTNum)
         }
+
+        nextUnIssuedTokenId += unIssuedNFTNum;
+
         uint256 price = _bondingCurve().getBuyPrice(_totalSupply(), totalNFTNum);
         totalAmount = _swapTokenForSpecificNFTs(tokenIds, price, revealFee, maxExpectedTokenInput, nftRecipient);
     }
@@ -462,7 +464,6 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
         (address payable[] memory royaltyRecipients, uint256[] memory royaltyAmounts, uint256 totalRoyalty) =
             IRoyaltyExecutor(royaltyExecutor).calculateRoyalty(address(this), tokenIds[0], price);
-
         totalAmount = price + totalFee + totalRoyalty + revealFee;
 
         if (totalAmount > maxExpectedTokenInput) {
