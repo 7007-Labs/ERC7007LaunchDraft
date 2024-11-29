@@ -548,6 +548,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     /// @dev Transfers NFTs from sender to pair contract
     function _takeNFTsFromSender(uint256[] calldata tokenIds, bool isRouter, address routerCaller) internal {
         address _from = isRouter ? routerCaller : msg.sender;
+        // The router is trusted here, so NFT ownership is not checked
         for (uint256 i = 0; i < tokenIds.length; i++) {
             saleOutNFTs.setTo(tokenIds[i], false);
             IERC721(nft).transferFrom(_from, address(this), tokenIds[i]);

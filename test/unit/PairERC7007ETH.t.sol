@@ -7,6 +7,7 @@ import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol"
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 
+import {Solarray} from "../utils/Solarray.sol";
 import {PairType} from "../../src/enums/PairType.sol";
 import {PairERC7007ETH} from "../../src/PairERC7007ETH.sol";
 import {PairFactory} from "../../src/PairFactory.sol";
@@ -494,38 +495,6 @@ contract PairERC7007ETHTest is Test {
         }
     }
 
-    function testFuzz_BuyAndSell(
-        uint256 nftNum
-    ) public {
-        nftNum = bound(nftNum, 1, nftTotalSupply);
-        _initPairWithDefaultConfig();
-
-        (uint256 amount,,) = pair.getBuyNFTQuote(0, nftNum, false);
-        vm.deal(router, amount);
-        vm.prank(router);
-        pair.swapTokenForNFTs{value: amount}(nftNum, amount, user, true, user);
-
-        uint256[] memory tokenIds = new uint256[](nftNum);
-        for (uint256 i; i < nftNum; i++) {
-            tokenIds[i] = i;
-        }
-        vm.prank(user);
-        IERC721(nft).setApprovalForAll(address(pair), true);
-
-        vm.prank(router);
-        uint256 amountOut = pair.swapNFTsForToken(tokenIds, 0, payable(user), true, user);
-        (uint256 expectedAmountOut,) = pair.getSellNFTQuote(0, tokenIds.length);
-        assertEq(amountOut, expectedAmountOut);
-        assertEq(address(pair).balance, 0);
-
-        // another user may buy already issued NFTs
-        address user2 = makeAddr("user2");
-        (amount,,) = pair.getBuyNFTQuote(0, nftNum, false);
-        vm.deal(router, amount);
-        vm.prank(router);
-        pair.swapTokenForNFTs{value: amount}(nftNum, amount, user2, true, user2);
-    }
-
     function test_Revert_BuyOrSellNFT_IFSaleInactive() public {
         _initPairWithPresale(bytes32(0));
         vm.deal(router, 1 ether);
@@ -577,5 +546,67 @@ contract PairERC7007ETHTest is Test {
         (uint256 amount,,) = pair.getBuyNFTQuote(0, 3, false);
         vm.prank(router);
         pair.swapTokenForNFTs{value: amount}(3, amount, user, true, user);
+    }
+
+    function test_ComplexTrade() public {
+        _initPairWithDefaultConfig();
+        vm.deal(router, 10 ether);
+
+        uint256 amount;
+        (amount,,) = pair.getBuyNFTQuote(0, 3456, false);
+
+        vm.startPrank(router);
+        pair.swapTokenForNFTs{value: amount}(3456, amount, user, true, user);
+
+        address user2 = makeAddr("user2");
+        (amount,,) = pair.getBuyNFTQuote(0, nftTotalSupply, false);
+        pair.swapTokenForNFTs{value: amount}(nftTotalSupply, amount, user2, true, user2);
+        assertEq(IERC721(nft).balanceOf(user) + IERC721(nft).balanceOf(user2), nftTotalSupply);
+        assertEq(address(pair).balance, bondingCurveFixedPrice * nftTotalSupply);
+
+        // now all the nfts have been issued
+        (, uint256 revealFee,) = pair.getBuyNFTQuote(0, 2, true);
+        assertEq(revealFee, 0);
+        vm.stopPrank();
+
+        uint256[] memory tokenIds1 = Solarray.uint256s(0, 1234, 100, 3455, 2222, 1024);
+        vm.startPrank(user);
+        for (uint256 i; i < tokenIds1.length; i++) {
+            IERC721(nft).approve(address(pair), tokenIds1[i]);
+        }
+        vm.stopPrank();
+
+        vm.prank(user2);
+        IERC721(nft).setApprovalForAll(address(pair), true);
+
+        vm.startPrank(router);
+        pair.swapNFTsForToken(tokenIds1, 0, payable(user), true, user);
+
+        uint256[] memory tokenIds2 = Solarray.uint256s(3456, 7006, 4444, 5555, 6666, 3999);
+        pair.swapNFTsForToken(tokenIds2, 0, payable(user2), true, user2);
+        assertEq(address(pair).balance, bondingCurveFixedPrice * (nftTotalSupply - 12));
+
+        address user3 = makeAddr("user3");
+        (amount,,) = pair.getBuyNFTQuote(0, 7, false);
+        pair.swapTokenForNFTs{value: amount}(7, amount, user3, true, user3);
+        assertEq(IERC721(nft).balanceOf(user3), 7);
+
+        address user4 = makeAddr("user4");
+        uint256[] memory tokenIds3 = new uint256[](tokenIds1.length + tokenIds2.length);
+        for (uint256 i; i < tokenIds1.length; i++) {
+            tokenIds3[i] = tokenIds1[i];
+        }
+        for (uint256 i; i < tokenIds2.length; i++) {
+            tokenIds3[i + tokenIds1.length] = tokenIds2[i];
+        }
+        (amount,,) = pair.getBuyNFTQuote(0, tokenIds3.length, true);
+
+        vm.expectRevert(); // only 5 nfts left
+        pair.swapTokenForSpecificNFTs{value: amount}(tokenIds3, 6, amount, user4, true, user4);
+
+        pair.swapTokenForSpecificNFTs{value: amount}(tokenIds3, 0, amount, user4, true, user4);
+
+        assertEq(address(pair).balance, bondingCurveFixedPrice * nftTotalSupply);
+        vm.stopPrank();
     }
 }
