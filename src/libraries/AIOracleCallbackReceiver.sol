@@ -1,6 +1,5 @@
-// SampleContract.sol
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.23;
 
 import "../interfaces/IAIOracle.sol";
 
@@ -13,7 +12,9 @@ abstract contract AIOracleCallbackReceiver {
     error UnauthorizedCallbackSource(IAIOracle expected, IAIOracle found);
 
     /// @notice Initialize the contract, binding it to a specified AIOracle contract
-    constructor(IAIOracle _aiOracle) {
+    constructor(
+        IAIOracle _aiOracle
+    ) {
         aiOracle = _aiOracle;
     }
 
@@ -34,7 +35,9 @@ abstract contract AIOracleCallbackReceiver {
      */
     function aiOracleCallback(uint256 requestId, bytes calldata output, bytes calldata callbackData) external virtual;
 
-    function isFinalized(uint256 requestId) external view returns (bool) {
+    function isFinalized(
+        uint256 requestId
+    ) external view returns (bool) {
         return aiOracle.isFinalized(requestId);
     }
 }

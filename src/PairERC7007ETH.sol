@@ -18,6 +18,7 @@ import {IRoyaltyExecutor} from "./interfaces/IRoyaltyExecutor.sol";
 import {IPairFactory} from "./interfaces/IPairFactory.sol";
 import {IFeeManager} from "./interfaces/IFeeManager.sol";
 import {IORAERC7007} from "./interfaces/IORAERC7007.sol";
+import {BitMapHelpers} from "./libraries/BitMapHelpers.sol";
 
 /**
  * @title PairERC7007ETH
@@ -26,6 +27,7 @@ import {IORAERC7007} from "./interfaces/IORAERC7007.sol";
 contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using Address for address payable;
     using BitMaps for BitMaps.BitMap;
+    using BitMapHelpers for BitMaps.BitMap;
 
     /// @dev Fee in basis points (1%)
     uint16 public constant DEFAULT_FEE_BPS = 100;
@@ -528,21 +530,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     function _selectNFTs(
         uint256 num
     ) internal view returns (uint256[] memory tokenIds) {
-        tokenIds = new uint256[](num);
-        uint256 mod = nextUnIssuedTokenId;
-        // use a weak random number, in order to ensure that NFTs with larger IDs can also be selected
-        uint256 start = uint256(blockhash(block.number)) % mod;
-        uint256 count = 0;
-        for (uint256 i = 0; i < nextUnIssuedTokenId; i++) {
-            uint256 tokenId = (start + i) % mod;
-            if (saleOutNFTs.get(tokenId)) continue;
-            tokenIds[count] = tokenId;
-            count += 1;
-            if (count == num) break;
-        }
-        assembly {
-            mstore(tokenIds, count)
-        }
+        return saleOutNFTs.randomSelectUnset(num, nextUnIssuedTokenId);
     }
 
     /// @dev Transfers NFTs from sender to pair contract
