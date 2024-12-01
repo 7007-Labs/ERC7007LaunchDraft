@@ -189,8 +189,12 @@ contract ERC7007LaunchTest is Test {
         vm.mockCall(address(aiOracle), abi.encodeWithSelector(aiOracle.estimateFeeBatch.selector), abi.encode(300));
         vm.mockCall(address(randOracle), abi.encodeWithSelector(randOracle.estimateFee.selector), abi.encode(30));
 
-        uint256 price = launch.getInitialBuyQuote(params, address(aiOracle), address(randOracle));
-        uint256 expectedPrice = 10 * 20 + 300 + 30 + 4;
-        assertEq(price, expectedPrice);
+        uint256 fee = launch.estimateLaunchFee(params, address(aiOracle), address(randOracle));
+        uint256 expectedFee = 10 * 20 + 300 + 30 + 4;
+        assertEq(fee, expectedFee);
+
+        params.presaleEnd = uint64(block.timestamp + 1 days);
+        uint256 feeWithPresale = launch.estimateLaunchFee(params, address(aiOracle), address(randOracle));
+        assertEq(feeWithPresale, 0);
     }
 }

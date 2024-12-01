@@ -67,7 +67,6 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     event WhitelistStateChanged(bool isEnabled);
 
     error CallerNotWhitelisted();
-    error OnlyNonPresaleModeAllowed();
     error InvalidInitialBuyNum();
     error ZeroAddress();
 
@@ -101,12 +100,13 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
      * @dev Launches a new NFT collection with trading pair
      * @param params LaunchParams struct containing all necessary parameters
      * @param productWhitelistProof Proof for launch whitelist verification
+     * @return pair Address of the created trading pair
      * @notice Creates NFT collection, sets up trading pair, and performs initial buy
      */
     function launch(
         LaunchParams calldata params,
         bytes32[] calldata productWhitelistProof
-    ) external payable whenNotPaused {
+    ) external payable whenNotPaused returns (address pair) {
         _checkWhitelist(productWhitelistProof);
 
         address collection = INFTCollectionFactory(nftCollectionFactory).createNFTCollection(
@@ -127,7 +127,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         bytes memory data = abi.encode(NFT_TOTAL_SUPPLY, salesConfig);
 
         // Create trading pair
-        address pair = IPairFactory(pairFactory).createPairERC7007ETH(
+        pair = IPairFactory(pairFactory).createPairERC7007ETH(
             msg.sender,
             collection,
             PairType.LAUNCH,
@@ -138,7 +138,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         // Activate NFT collection
         IORAERC7007(collection).activate(NFT_TOTAL_SUPPLY, pair, pair);
 
-        // Only in non presale model
+        // non presale model
         if (params.presaleEnd == 0) {
             uint256 amount = _initailBuy(pair, params.initialBuyNum);
             _refundTokenToSender(amount);
@@ -285,24 +285,26 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     }
 
     /**
-     * @dev Calculates the initial buy cost for a launch
+     * @dev Estimates the launch fee based on the provided parameters
      * @param params Launch parameters
      * @param aiOracle Address of the AI oracle
      * @param randOracle Address of the random oracle
      * @return Amount of tokens spent
      */
-    function getInitialBuyQuote(
+    function estimateLaunchFee(
         LaunchParams calldata params,
         address aiOracle,
         address randOracle
     ) external view returns (uint256) {
-        if (params.presaleEnd > 0) revert OnlyNonPresaleModeAllowed();
+        if (params.presaleEnd > 0) return 0;
+
         if (params.initialBuyNum == 0) revert InvalidInitialBuyNum();
         if (aiOracle == address(0)) revert ZeroAddress();
         if (randOracle == address(0)) revert ZeroAddress();
 
         uint256 price = ICurve(params.bondingCurve).getBuyPrice(0, params.initialBuyNum);
         // default protocol fee 1% and default pair fee 1%
+        // no royalty
         uint256 fee = (price * 100 / 10_000) + (price * 100 / 10_000);
 
         uint256 promptLength = bytes(params.prompt).length;
