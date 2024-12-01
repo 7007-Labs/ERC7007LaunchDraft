@@ -22,6 +22,8 @@ contract MockAIOracle {
 
     mapping(uint256 => RequestData) requests;
 
+    error ExceedGaslimit(uint256 limit, uint256 used);
+
     constructor() {
         modelExists[50] = true;
         modelFee[50] = 0.0003 ether;
@@ -93,7 +95,12 @@ contract MockAIOracle {
         if (request.callbackContract != address(0)) {
             bytes memory payload =
                 abi.encodeWithSelector(callbackFunctionSelector, requestId, output, request.callbackData);
-            (bool success, bytes memory data) = request.callbackContract.call{gas: request.gasLimit}(payload);
+
+            uint256 gasBefore = gasleft();
+            (bool success, bytes memory data) = request.callbackContract.call(payload);
+            uint256 gasUsed = gasBefore - gasleft();
+            if (gasUsed > request.gasLimit) revert ExceedGaslimit(request.gasLimit, gasUsed);
+
             require(success, "failed to call selector");
             if (!success) {
                 assembly {
@@ -117,6 +124,32 @@ contract MockAIOracle {
 
     function latestRequestId() external view returns (uint256) {
         return seq - 1;
+    }
+
+    function makeRequestOutput(
+        uint256 requestId
+    ) public view returns (bytes memory) {
+        RequestData storage request = requests[requestId];
+        bytes memory data = request.input;
+        uint256 count = 0;
+        bytes memory target = '"seed"';
+        for (uint256 i = 0; i <= data.length - target.length; i++) {
+            bool isMatched = true;
+
+            for (uint256 j = 0; j < target.length; j++) {
+                if (data[i + j] != target[j]) {
+                    isMatched = false;
+                    break;
+                }
+            }
+
+            if (isMatched) {
+                count++;
+            }
+        }
+
+        if (count == 0) count = 1;
+        return makeOutput(count);
     }
 
     function makeOutput(

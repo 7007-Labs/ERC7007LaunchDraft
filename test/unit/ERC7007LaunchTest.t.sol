@@ -24,7 +24,7 @@ contract ERC7007LaunchTest is Test {
         pair = address(new MockPair());
         ERC7007Launch impl = new ERC7007Launch(nftFactory, pairFactory);
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), "");
-        launch = ERC7007Launch(address(proxy));
+        launch = ERC7007Launch(payable(proxy));
         launch.initialize(owner);
     }
 

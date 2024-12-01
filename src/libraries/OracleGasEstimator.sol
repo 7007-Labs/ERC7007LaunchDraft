@@ -10,8 +10,10 @@ library OracleGasEstimator {
         uint256 wordSize = (num * 191 * 32 + numTimesPromptLen * 6) / 32;
         uint256 memoryGas = (wordSize * wordSize) / 512 + wordSize * 3; // memory expans cost
         uint256 totalGas = baseGas + memoryGas;
+        if (num > 1) {
+            totalGas = totalGas * 110 / 100;
+        }
         if (totalGas > type(uint64).max) revert GaslimitOverflow();
-        // todo: 进行一定比例放大
         return uint64(totalGas);
     }
 
@@ -22,8 +24,10 @@ library OracleGasEstimator {
         uint256 wordSize = slotNum * 26 + num * (32 * 200 + promptLength * 23) / 32;
         uint256 memoryGas = (wordSize * wordSize) / 512 + wordSize * 3;
         uint256 totalGas = baseGas + memoryGas;
+        if (num > 1) {
+            totalGas = totalGas * 110 / 100;
+        }
         if (totalGas > type(uint64).max) revert GaslimitOverflow();
-        // todo: 进行一定比例放大
         return uint64(totalGas);
     }
 }

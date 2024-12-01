@@ -96,6 +96,9 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         isEnableWhitelist = true;
     }
 
+    /// @dev receive refunds from pairs
+    receive() external payable {}
+
     /**
      * @dev Launches a new NFT collection with trading pair
      * @param params LaunchParams struct containing all necessary parameters

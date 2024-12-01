@@ -16,9 +16,15 @@ contract MockRandOracle {
     uint256 public gasPrice;
     mapping(uint256 requestId => Request) requests;
 
+    error ExceedGaslimit(uint256 limit, uint256 used);
+
     constructor() {
         gasPrice = tx.gasprice;
         seq = 1;
+    }
+
+    function latestRequestId() external view returns (uint256) {
+        return seq - 1;
     }
 
     function setGasPrice(
@@ -63,7 +69,10 @@ contract MockRandOracle {
             uint256 outputUint256 = abi.decode(output, (uint256)); // convert bytes to uint256, for callback only
             bytes memory payload =
                 abi.encodeWithSelector(callbackFunctionSelector, requestId, outputUint256, request.callbackData);
-            (bool success, bytes memory data) = request.callbackAddr.call{gas: request.gasLimit}(payload);
+            uint256 gasBefore = gasleft();
+            (bool success, bytes memory data) = request.callbackAddr.call(payload);
+            uint256 gasUsed = gasBefore - gasleft();
+            if (gasUsed > request.gasLimit) revert ExceedGaslimit(request.gasLimit, gasUsed);
             require(success, "callback fail");
             if (!success) {
                 assembly {

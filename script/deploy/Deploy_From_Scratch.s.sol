@@ -83,7 +83,7 @@ contract Deploy is ExistingDeploymentParser {
 
         erc7007LaunchImpl = new ERC7007Launch(address(nftCollectionFactoryProxy), address(pairFactoryProxy));
         erc7007LaunchProxy = ERC7007Launch(
-            address(
+            payable(
                 new ERC1967Proxy(
                     address(erc7007LaunchImpl), abi.encodeWithSelector(ERC7007Launch.initialize.selector, admin)
                 )
@@ -108,6 +108,7 @@ contract Deploy is ExistingDeploymentParser {
     }
 
     function _configPermission() internal {
+        pairFactoryProxy.setRouterAllowed(address(erc7007LaunchProxy), true);
         pairFactoryProxy.setAllowlistAllowed(address(erc7007LaunchProxy), true);
         nftCollectionFactoryProxy.setAllowlistAllowed(address(erc7007LaunchProxy), true);
         oraOracleDelegateCallerProxy.setOperator(address(pairFactoryProxy));
