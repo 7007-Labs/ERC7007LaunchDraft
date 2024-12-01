@@ -16,7 +16,8 @@ contract ExponentialCurve is ICurve {
     }
 
     function getBuyPrice(uint256 totalSupply, uint256 numItems) external pure returns (uint256 inputValue) {
-        return getPrice(convert(totalSupply), convert(numItems)).intoUint256();
+        if (numItems == 0) return 0;
+        return getPrice(convert(totalSupply), convert(numItems)).intoUint256() + 2;
     }
 
     function getSellPrice(uint256 totalSupply, uint256 numItems) external pure returns (uint256 outputValue) {
