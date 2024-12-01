@@ -17,7 +17,7 @@ contract Deploy is ExistingDeploymentParser {
 
     function run() public {
         vm.startBroadcast();
-        _deployFromScrath();
+        _deployFromScratch();
         _deployBondCurves();
         _configORA();
         _configBondingCurves();
@@ -27,7 +27,7 @@ contract Deploy is ExistingDeploymentParser {
         outputContractAddresses(getOutputPath());
     }
 
-    function _deployFromScrath() internal {
+    function _deployFromScratch() internal {
         royaltyExecutorImpl = new RoyaltyExecutor();
         royaltyExecutorProxy = RoyaltyExecutor(
             address(
