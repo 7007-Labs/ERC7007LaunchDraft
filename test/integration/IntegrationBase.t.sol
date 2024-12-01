@@ -55,12 +55,16 @@ abstract contract IntegrationBase is ExistingDeploymentParser {
     }
 
     function _setUpLocal() public virtual {
-        aiOracle = address(new MockAIOracle());
-        randOracle = address(new MockRandOracle());
         admin = makeAddr("admin");
         protocolFeeRecipient = makeAddr("protocolFeeRecipient");
+        _configOrDeployDeps();
         _deployContracts();
         _configContracts();
+    }
+
+    function _configOrDeployDeps() internal virtual {
+        aiOracle = address(new MockAIOracle());
+        randOracle = address(new MockRandOracle());
     }
 
     function _deployContracts() internal virtual {
@@ -130,7 +134,7 @@ abstract contract IntegrationBase is ExistingDeploymentParser {
         bondingCurves.push(DeployedBondingCurve({name: type(ExponentialCurve).name, addr: address(curve)}));
     }
 
-    function _configContracts() internal {
+    function _configContracts() internal virtual {
         vm.startPrank(admin);
 
         for (uint256 i = 0; i < bondingCurves.length; i++) {
