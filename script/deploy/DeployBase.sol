@@ -11,16 +11,13 @@ import {IAIOracle} from "../../src/interfaces/IAIOracle.sol";
 import {IRandOracle} from "../../src/interfaces/IRandOracle.sol";
 
 abstract contract DeployBase is ExistingDeploymentParser {
-    address aiOracle = 0x0A0f4321214BB6C7811dD8a71cF587bdaF03f0A0;
-    address randOracle = 0x9202fea708886999D3E642B11271D65A67cBE920;
     address protocolFeeRecipient;
     address admin;
 
     function deploy() public {
-        _deployFromScratch();
-        _deployBondCurves();
         _configORA();
-        _configBondingCurves();
+        _deployBondCurves();
+        _deployFromScratch();
         _configPermission();
         _transferOwnership();
     }
@@ -127,26 +124,27 @@ abstract contract DeployBase is ExistingDeploymentParser {
         );
     }
 
+    function _configORA() internal virtual {
+        aiOracle = 0x0A0f4321214BB6C7811dD8a71cF587bdaF03f0A0;
+        randOracle = 0x9202fea708886999D3E642B11271D65A67cBE920;
+    }
+
     function _deployBondCurves() internal virtual {
         ExponentialCurve curve = new ExponentialCurve();
         bondingCurves.push(DeployedBondingCurve({name: type(ExponentialCurve).name, addr: address(curve)}));
     }
 
-    function _configORA() internal virtual {
-        nftCollectionFactoryProxy.setProviderAllowed(aiOracle, true);
-        nftCollectionFactoryProxy.setORAModelAllowed(50, true);
-    }
-
-    function _configBondingCurves() internal virtual {
-        for (uint256 i = 0; i < bondingCurves.length; i++) {
-            pairFactoryProxy.setBondingCurveAllowed(bondingCurves[i].addr, true);
-        }
-    }
-
     function _configPermission() internal virtual {
         pairFactoryProxy.setRouterAllowed(address(erc7007LaunchProxy), true);
         pairFactoryProxy.setAllowlistAllowed(address(erc7007LaunchProxy), true);
+        for (uint256 i = 0; i < bondingCurves.length; i++) {
+            pairFactoryProxy.setBondingCurveAllowed(bondingCurves[i].addr, true);
+        }
+
         nftCollectionFactoryProxy.setAllowlistAllowed(address(erc7007LaunchProxy), true);
+        nftCollectionFactoryProxy.setProviderAllowed(aiOracle, true);
+        nftCollectionFactoryProxy.setORAModelAllowed(50, true);
+
         oraOracleDelegateCallerProxy.setOperator(address(pairFactoryProxy));
     }
 

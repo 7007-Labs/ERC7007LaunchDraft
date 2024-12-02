@@ -21,7 +21,7 @@ contract Integration_Base is IntegrationBase {
         super.setUp();
     }
 
-    function _configOrDeployDeps() internal override {
+    function _configORA() internal override {
         aiOracle = 0x0A0f4321214BB6C7811dD8a71cF587bdaF03f0A0;
         mockAIOracle = new MockAIOracle();
         randOracle = address(new MockRandOracle());

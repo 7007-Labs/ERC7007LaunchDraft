@@ -11,8 +11,6 @@ import {IAIOracle} from "../../src/interfaces/IAIOracle.sol";
 import {IRandOracle} from "../../src/interfaces/IRandOracle.sol";
 
 abstract contract IntegrationBase is ExistingDeploymentParser, Test {
-    address public aiOracle;
-    address public randOracle;
     address public admin;
     address public protocolFeeRecipient;
 
@@ -58,12 +56,12 @@ abstract contract IntegrationBase is ExistingDeploymentParser, Test {
     function _setUpLocal() public virtual {
         admin = makeAddr("admin");
         protocolFeeRecipient = makeAddr("protocolFeeRecipient");
-        _configOrDeployDeps();
+        _configORA();
         _deployContracts();
         _configContracts();
     }
 
-    function _configOrDeployDeps() internal virtual {
+    function _configORA() internal virtual {
         aiOracle = address(new MockAIOracle());
         randOracle = address(new MockRandOracle());
     }

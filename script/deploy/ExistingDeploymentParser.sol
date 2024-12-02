@@ -21,6 +21,9 @@ struct DeployedBondingCurve {
 }
 
 contract ExistingDeploymentParser is Script {
+    address public aiOracle;
+    address public randOracle;
+
     RoyaltyExecutor public royaltyExecutorProxy;
     RoyaltyExecutor public royaltyExecutorImpl;
     FeeManager public feeManagerImpl;
@@ -43,6 +46,10 @@ contract ExistingDeploymentParser is Script {
         string memory outputPath
     ) public {
         string memory parent_object = "parent object";
+
+        // Save oracle addresses at top level
+        vm.serializeAddress(parent_object, "aiOracle", aiOracle);
+        vm.serializeAddress(parent_object, "randOracle", randOracle);
 
         string memory deployed_addresses = "addresses";
         vm.serializeAddress(deployed_addresses, "royaltyExecutorImpl", address(royaltyExecutorImpl));
@@ -78,6 +85,7 @@ contract ExistingDeploymentParser is Script {
         if (bondingCurveNum > 0) {
             vm.serializeString(parent_object, deployed_bondingCurves, deployed_bondingCurves_output);
         }
+
         string memory finalJson = vm.serializeString(parent_object, deployed_addresses, deployed_addresses_output);
         vm.writeJson(finalJson, outputPath);
         console.log("Contract addresses saved to", outputPath);
@@ -121,6 +129,9 @@ contract ExistingDeploymentParser is Script {
             ERC7007Launch(payable(stdJson.readAddress(existingDeploymentData, ".addresses.erc7007LaunchImpl")));
         erc7007LaunchProxy =
             ERC7007Launch(payable(stdJson.readAddress(existingDeploymentData, ".addresses.erc7007LaunchProxy")));
+
+        aiOracle = stdJson.readAddress(existingDeploymentData, ".aiOracle");
+        randOracle = stdJson.readAddress(existingDeploymentData, ".randOracle");
 
         // Load bonding curves
         address exponentialCurveAddr = stdJson.readAddress(existingDeploymentData, ".bondingCurves.ExponentialCurve");
