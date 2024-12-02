@@ -66,8 +66,8 @@ contract ExponentialCurveTest is Test {
 
         assertEq(
             curve.getBuyPrice(supplyNum, numItems),
-            curve.getSellPrice(supplyNum + numItems, numItems) + 2,
             /// to avoid precision loss
+            curve.getSellPrice(supplyNum + numItems, numItems) + 2,
             "Buy price should equal sell price"
         );
     }
