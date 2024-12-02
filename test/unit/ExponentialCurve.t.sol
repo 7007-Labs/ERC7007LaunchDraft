@@ -49,12 +49,15 @@ contract ExponentialCurveTest is Test {
         curve.getBuyPrice(1, 0);
     }
 
-    function test_GetBuyPrice_ZeroSupply() external view {
+    function test_ZeroSupply() external {
         uint256 price = curve.getBuyPrice(0, 1);
         assertEq(price, 152_988_581_221_576, "Buy price incorrect");
 
         price = curve.getSellPrice(1, 1);
         assertEq(price, 152_988_581_221_574, "Sell price incorrect");
+
+        vm.expectRevert();
+        curve.getSellPrice(0, 1);
     }
 
     function invariant_SamePriceForSameSupplyAndAmount() external view {
