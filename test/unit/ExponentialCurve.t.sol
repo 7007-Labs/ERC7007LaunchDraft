@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {Test, console} from "forge-std/Test.sol";
+import {StdUtils} from "forge-std/StdUtils.sol";
 import {ExponentialCurve} from "../../src/bonding-curves/ExponentialCurve.sol";
 
 contract ExponentialCurveTest is Test {
@@ -9,36 +10,65 @@ contract ExponentialCurveTest is Test {
 
     function setUp() public {
         curve = new ExponentialCurve();
+        targetContract(address(curve));
+
+        bytes4[] memory selectors = new bytes4[](2);
+        selectors[0] = ExponentialCurve.getBuyPrice.selector;
+        selectors[1] = ExponentialCurve.getSellPrice.selector;
+
+        FuzzSelector memory selector = FuzzSelector({addr: address(curve), selectors: selectors});
+        targetSelector(selector);
     }
 
-    function test_GetBuyPrice() external view {
+    function invariant_BuyPriceIsUpOnly() external view {
+        uint256 supplyNum;
+        uint256 numItems;
+
+        supplyNum = StdUtils.bound(supplyNum, 1, 70_070);
+        numItems = StdUtils.bound(numItems, 1, supplyNum);
+
+        uint256 price1 = curve.getBuyPrice(supplyNum, numItems);
+        uint256 price2 = curve.getBuyPrice(supplyNum + 1, numItems);
+
+        assertTrue(price2 > price1, "Price should increase with supply");
+    }
+
+    function test_KeyPoints() external view {
         uint256 price = curve.getBuyPrice(77, 10);
         assertEq(price, 1_609_151_099_447_432, "Buy price incorrect");
+
+        price = curve.getSellPrice(87, 10);
+        assertEq(price, 1_609_151_099_447_432, "Sell price incorrect");
+
+        price = curve.getBuyPrice(7007, 1);
+        assertEq(price, 11_768_282_715_324_654, "Buy price incorrect");
     }
 
-    function test_GetSellPrice() external view {
-        uint256 price = curve.getSellPrice(87, 10);
-        assertEq(price, 1_609_151_099_447_432, "Sell price incorrect");
+    function test_GetBuyPrice_ZeroNumItems() external {
+        vm.expectRevert();
+        curve.getBuyPrice(1, 0);
     }
 
     function test_GetBuyPrice_ZeroSupply() external view {
         uint256 price = curve.getBuyPrice(0, 1);
         assertEq(price, 152_988_581_221_574, "Buy price incorrect");
-    }
 
-    function test_GetBuyPrice_ZeroNumItems() external view {
-        uint256 price = curve.getBuyPrice(1, 0);
-        assertEq(price, 0, "Buy price incorrect");
-    }
-
-    function test_GetSellPrice_OneSupply() external view {
-        uint256 price = curve.getSellPrice(1, 1);
+        price = curve.getSellPrice(1, 1);
         assertEq(price, 152_988_581_221_574, "Sell price incorrect");
     }
 
-    function test_GetSellPrice_ZeroNumItems() external view {
-        uint256 price = curve.getSellPrice(1, 0);
-        assertEq(price, 0, "Sell price incorrect");
+    function invariant_SamePriceForSameSupplyAndAmount() external view {
+        uint256 supplyNum;
+        uint256 numItems;
+
+        supplyNum = StdUtils.bound(supplyNum, 1, 70_070);
+        numItems = StdUtils.bound(numItems, 1, supplyNum);
+
+        assertEq(
+            curve.getBuyPrice(supplyNum, numItems),
+            curve.getSellPrice(supplyNum + numItems, numItems),
+            "Buy price should equal sell price"
+        );
     }
 
     function testFuzz_BuyPriceEqualsSellPrice(uint256 totalSupply, uint256 numItems) public view {

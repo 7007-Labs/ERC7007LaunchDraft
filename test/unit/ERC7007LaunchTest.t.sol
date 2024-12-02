@@ -38,6 +38,11 @@ contract ERC7007LaunchTest is Test {
         vm.prank(user);
         vm.expectRevert();
         launch.setWhitelistMerkleRoot(bytes32(0));
+
+        vm.startPrank(owner);
+        launch.setWhitelistMerkleRoot(bytes32(0));
+        launch.disableWhitelist();
+        vm.stopPrank();
     }
 
     function test_DisableWhitelist() public {

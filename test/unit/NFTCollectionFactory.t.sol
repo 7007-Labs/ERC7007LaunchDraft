@@ -53,6 +53,11 @@ contract NFTCollectionFactoryTest is Test {
         factory.setProviderAllowed(provider, true);
         factory.setORAModelAllowed(modelId, true);
         vm.stopPrank();
+
+        vm.expectRevert();
+        factory.setProviderAllowed(provider, true);
+        vm.expectRevert();
+        factory.setORAModelAllowed(modelId, true);
     }
 
     function _configAllowlist() internal {
@@ -60,6 +65,11 @@ contract NFTCollectionFactoryTest is Test {
         factory.setAllowlistAllowed(address(this), true);
         factory.setAllowlistAllowed(user, true);
         vm.stopPrank();
+
+        vm.expectRevert();
+        factory.setAllowlistAllowed(address(this), true);
+        vm.expectRevert();
+        factory.setAllowlistAllowed(user, true);
     }
 
     function test_Initialize() public view {

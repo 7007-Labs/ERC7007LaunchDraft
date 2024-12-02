@@ -24,7 +24,7 @@ contract DebugORAERC7007 is Test {
         vm.createSelectFork("arbitrum", 269_523_271);
     }
 
-    function test_debug() external {
+    function debug() external {
         uint256 requestId = 109_397;
         bool isFin = IAIOracle(aiOracle).isFinalized(requestId);
         console2.log("isFin: ", isFin);
