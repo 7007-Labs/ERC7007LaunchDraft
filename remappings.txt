@@ -1,4 +1,4 @@
 @openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
 @openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
-ora/=lib/OAO/contracts/
 @prb/math/=lib/prb-math/
+@solady/=lib/solady/src/

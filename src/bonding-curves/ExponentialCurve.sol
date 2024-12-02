@@ -11,10 +11,6 @@ contract ExponentialCurve is ICurve {
     /// @dev 0.52 * (7007 / 4.3428) * (e^((4.3428/7007)*(S + n)) - e^((4.3428/7007)*S)) / ethPrice
     /// ethPrice = 3400 usd/ether
     function getPrice(UD60x18 totalSupply, UD60x18 numItems) private pure returns (UD60x18) {
-        require(
-            numItems.gt(convert(0)) && totalSupply.gte(convert(0)), "totalSupply and numItems must be greater than 0"
-        );
-
         UD60x18 gap =
             EXP_FACTOR.mul(totalSupply.uncheckedAdd(numItems)).exp().uncheckedSub(EXP_FACTOR.mul(totalSupply).exp());
 
@@ -23,11 +19,13 @@ contract ExponentialCurve is ICurve {
 
     /// @notice 计算购买 numItems NFT 的价格
     function getBuyPrice(uint256 totalSupply, uint256 numItems) external pure returns (uint256 inputValue) {
-        return getPrice(convert(totalSupply), convert(numItems)).intoUint256();
+        require(numItems > 0, "numItems must be greater than 0");
+        return getPrice(convert(totalSupply), convert(numItems)).intoUint256() + 2;
     }
 
     /// @notice 计算卖出 numItems NFT 的价格
     function getSellPrice(uint256 totalSupply, uint256 numItems) external pure returns (uint256 outputValue) {
+        require(totalSupply > 0 && numItems > 0, "totalSupply and numItems must be greater than 0");
         return getPrice(convert(totalSupply - numItems), convert(numItems)).intoUint256();
     }
 }

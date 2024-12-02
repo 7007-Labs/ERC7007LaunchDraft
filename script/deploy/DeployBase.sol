@@ -1,33 +1,69 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
 
 import "./ExistingDeploymentParser.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {IAIOracle} from "../../src/interfaces/IAIOracle.sol";
 import {IRandOracle} from "../../src/interfaces/IRandOracle.sol";
 
-contract Deploy is ExistingDeploymentParser {
+abstract contract DeployBase is ExistingDeploymentParser {
     address aiOracle = 0x0A0f4321214BB6C7811dD8a71cF587bdaF03f0A0;
-    address randOracle = 0x0A0f4321214BB6C7811dD8a71cF587bdaF03f0A0; // todo: change it
-    address token7007 = vm.addr(7007);
-    address protocolFeeRecipient = vm.addr(7007);
-    address admin = vm.addr(1);
+    address randOracle = 0x9202fea708886999D3E642B11271D65A67cBE920;
+    address protocolFeeRecipient;
+    address admin;
 
-    function run() public {
-        vm.startBroadcast();
+    function deploy() public {
         _deployFromScratch();
         _deployBondCurves();
         _configORA();
         _configBondingCurves();
         _configPermission();
-        vm.stopBroadcast();
-
-        outputContractAddresses(getOutputPath());
+        _transferOwnership();
     }
 
-    function _deployFromScratch() internal {
+    function verifyDeploy() public {
+        _verifyImpl();
+    }
+
+    function _verifyImpl() internal virtual {
+        // Verify RoyaltyExecutor
+        address royaltyExecutorImplAddr = _getImplementation(address(royaltyExecutorProxy));
+        require(royaltyExecutorImplAddr == address(royaltyExecutorImpl), "RoyaltyExecutor implementation mismatch");
+
+        // Verify NFTCollectionFactory
+        address nftCollectionFactoryImplAddr = _getImplementation(address(nftCollectionFactoryProxy));
+        require(
+            nftCollectionFactoryImplAddr == address(nftCollectionFactoryImpl),
+            "NFTCollectionFactory implementation mismatch"
+        );
+
+        // Verify ORAOracleDelegateCaller
+        address oraOracleDelegateCallerImplAddr = _getImplementation(address(oraOracleDelegateCallerProxy));
+        require(
+            oraOracleDelegateCallerImplAddr == address(oraOracleDelegateCallerImpl),
+            "ORAOracleDelegateCaller implementation mismatch"
+        );
+
+        // Verify PairFactory
+        address pairFactoryImplAddr = _getImplementation(address(pairFactoryProxy));
+        require(pairFactoryImplAddr == address(pairFactoryImpl), "PairFactory implementation mismatch");
+
+        // Verify ERC7007Launch
+        address erc7007LaunchImplAddr = _getImplementation(address(erc7007LaunchProxy));
+        require(erc7007LaunchImplAddr == address(erc7007LaunchImpl), "ERC7007Launch implementation mismatch");
+    }
+
+    function _getImplementation(
+        address proxy
+    ) internal view returns (address) {
+        return address(uint160(uint256(vm.load(proxy, ERC1967Utils.IMPLEMENTATION_SLOT))));
+    }
+
+    function _deployFromScratch() internal virtual {
         royaltyExecutorImpl = new RoyaltyExecutor();
         royaltyExecutorProxy = RoyaltyExecutor(
             address(
@@ -83,7 +119,7 @@ contract Deploy is ExistingDeploymentParser {
 
         erc7007LaunchImpl = new ERC7007Launch(address(nftCollectionFactoryProxy), address(pairFactoryProxy));
         erc7007LaunchProxy = ERC7007Launch(
-            address(
+            payable(
                 new ERC1967Proxy(
                     address(erc7007LaunchImpl), abi.encodeWithSelector(ERC7007Launch.initialize.selector, admin)
                 )
@@ -91,27 +127,28 @@ contract Deploy is ExistingDeploymentParser {
         );
     }
 
-    function _deployBondCurves() internal {
+    function _deployBondCurves() internal virtual {
         ExponentialCurve curve = new ExponentialCurve();
         bondingCurves.push(DeployedBondingCurve({name: type(ExponentialCurve).name, addr: address(curve)}));
     }
 
-    function _configORA() internal {
+    function _configORA() internal virtual {
         nftCollectionFactoryProxy.setProviderAllowed(aiOracle, true);
         nftCollectionFactoryProxy.setORAModelAllowed(50, true);
     }
 
-    function _configBondingCurves() internal {
+    function _configBondingCurves() internal virtual {
         for (uint256 i = 0; i < bondingCurves.length; i++) {
             pairFactoryProxy.setBondingCurveAllowed(bondingCurves[i].addr, true);
         }
     }
 
-    function _configPermission() internal {
+    function _configPermission() internal virtual {
+        pairFactoryProxy.setRouterAllowed(address(erc7007LaunchProxy), true);
         pairFactoryProxy.setAllowlistAllowed(address(erc7007LaunchProxy), true);
         nftCollectionFactoryProxy.setAllowlistAllowed(address(erc7007LaunchProxy), true);
         oraOracleDelegateCallerProxy.setOperator(address(pairFactoryProxy));
     }
 
-    function _transferOwnership() internal {}
+    function _transferOwnership() internal virtual {}
 }

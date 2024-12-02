@@ -150,6 +150,14 @@ contract ORAERC7007ImplTest is Test {
         vm.prank(approved);
         vm.expectRevert();
         nft.transferFrom(defaultNFTOwner, user, 1);
+
+        vm.prank(user);
+        nft.setApprovalForAll(approved, true);
+        assertTrue(nft.isApprovedForAll(user, approved));
+
+        vm.prank(approved);
+        nft.transferFrom(user, defaultNFTOwner, 0);
+        assertEq(nft.ownerOf(0), defaultNFTOwner);
     }
 
     function test_Revert_SetDefaultRoyalty_IfNotOwner() public {
