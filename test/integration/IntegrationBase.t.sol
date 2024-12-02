@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "script/deploy/ExistingDeploymentParser.sol";
@@ -9,7 +10,7 @@ import {MockRandOracle} from "../mocks/MockRandOracle.t.sol";
 import {IAIOracle} from "../../src/interfaces/IAIOracle.sol";
 import {IRandOracle} from "../../src/interfaces/IRandOracle.sol";
 
-abstract contract IntegrationBase is ExistingDeploymentParser {
+abstract contract IntegrationBase is ExistingDeploymentParser, Test {
     address public aiOracle;
     address public randOracle;
     address public admin;

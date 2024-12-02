@@ -20,7 +20,7 @@ struct DeployedBondingCurve {
     address addr;
 }
 
-contract ExistingDeploymentParser is Script, Test {
+contract ExistingDeploymentParser is Script {
     RoyaltyExecutor public royaltyExecutorProxy;
     RoyaltyExecutor public royaltyExecutorImpl;
     FeeManager public feeManagerImpl;
@@ -39,7 +39,7 @@ contract ExistingDeploymentParser is Script, Test {
 
     DeployedBondingCurve[] public bondingCurves;
 
-    function outputContractAddresses(
+    function saveContractAddresses(
         string memory outputPath
     ) public {
         string memory parent_object = "parent object";
@@ -80,9 +80,60 @@ contract ExistingDeploymentParser is Script, Test {
         }
         string memory finalJson = vm.serializeString(parent_object, deployed_addresses, deployed_addresses_output);
         vm.writeJson(finalJson, outputPath);
+        console.log("Contract addresses saved to", outputPath);
     }
 
-    function getOutputPath() internal returns (string memory) {
+    function saveContractAddresses() public {
+        saveContractAddresses(getDefaultSavePath());
+    }
+
+    function loadContractAddresses(
+        string memory path
+    ) public {
+        console.log("Load contract addresses on ChainID", block.chainid);
+
+        string memory existingDeploymentData = vm.readFile(path);
+
+        royaltyExecutorImpl =
+            RoyaltyExecutor(stdJson.readAddress(existingDeploymentData, ".addresses.royaltyExecutorImpl"));
+        royaltyExecutorProxy =
+            RoyaltyExecutor(stdJson.readAddress(existingDeploymentData, ".addresses.royaltyExecutorProxy"));
+        feeManagerImpl = FeeManager(stdJson.readAddress(existingDeploymentData, ".addresses.feeManagerImpl"));
+        feeManagerProxy = FeeManager(stdJson.readAddress(existingDeploymentData, ".addresses.feeManagerProxy"));
+        oraOracleDelegateCallerImpl = ORAOracleDelegateCaller(
+            payable(stdJson.readAddress(existingDeploymentData, ".addresses.oraOracleDelegateCallerImpl"))
+        );
+        oraOracleDelegateCallerProxy = ORAOracleDelegateCaller(
+            payable(stdJson.readAddress(existingDeploymentData, ".addresses.oraOracleDelegateCallerProxy"))
+        );
+        oraERC7007Impl = ORAERC7007Impl(stdJson.readAddress(existingDeploymentData, ".addresses.oraERC7007Impl"));
+        nftCollectionFactoryImpl =
+            NFTCollectionFactory(stdJson.readAddress(existingDeploymentData, ".addresses.nftCollectionFactoryImpl"));
+        nftCollectionFactoryProxy =
+            NFTCollectionFactory(stdJson.readAddress(existingDeploymentData, ".addresses.nftCollectionFactoryProxy"));
+        pairFactoryImpl = PairFactory(stdJson.readAddress(existingDeploymentData, ".addresses.pairFactoryImpl"));
+        pairFactoryProxy = PairFactory(stdJson.readAddress(existingDeploymentData, ".addresses.pairFactoryProxy"));
+        pairERC7007ETHImpl =
+            PairERC7007ETH(stdJson.readAddress(existingDeploymentData, ".addresses.pairERC7007ETHImpl"));
+        pairERC7007ETHBeacon =
+            UpgradeableBeacon(stdJson.readAddress(existingDeploymentData, ".addresses.pairERC7007ETHBeacon"));
+        erc7007LaunchImpl =
+            ERC7007Launch(payable(stdJson.readAddress(existingDeploymentData, ".addresses.erc7007LaunchImpl")));
+        erc7007LaunchProxy =
+            ERC7007Launch(payable(stdJson.readAddress(existingDeploymentData, ".addresses.erc7007LaunchProxy")));
+
+        // Load bonding curves
+        address exponentialCurveAddr = stdJson.readAddress(existingDeploymentData, ".bondingCurves.ExponentialCurve");
+        if (exponentialCurveAddr != address(0)) {
+            bondingCurves.push(DeployedBondingCurve({name: "ExponentialCurve", addr: exponentialCurveAddr}));
+        }
+    }
+
+    function loadContractAddresses() public {
+        loadContractAddresses(getDefaultSavePath());
+    }
+
+    function getDefaultSavePath() internal returns (string memory) {
         string memory outputDir = string.concat("script/output/", vm.toString(block.chainid));
         vm.createDir(outputDir, true);
         return string.concat(outputDir, "/deploy.config.json");

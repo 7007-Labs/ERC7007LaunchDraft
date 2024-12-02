@@ -163,7 +163,7 @@ contract Integration_Local is IntegrationBase {
         uint256 totalSupply = 7007 - IERC721(nft).balanceOf(pair);
         uint256 totalPrice = ICurve(bondingCurves[0].addr).getBuyPrice(0, totalSupply);
 
-        uint256 percent = (totalPrice - pair.balance) * 10_000 / pair.balance;
+        uint256 percent = (pair.balance - totalPrice) * 10_000 / pair.balance;
         assertEq(percent <= 1, true);
 
         _invokeRandOracle();
