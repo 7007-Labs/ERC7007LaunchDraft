@@ -9,7 +9,7 @@ interface IPairFactory {
         address _nft,
         PairType _pairType,
         address _propertyChecker,
-        bytes calldata params // 不同pairType可能会用到
+        bytes calldata params
     ) external payable returns (address);
 
     function isRouterAllowed(

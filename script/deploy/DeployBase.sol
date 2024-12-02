@@ -2,13 +2,13 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
-
-import "./ExistingDeploymentParser.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+
 import {IAIOracle} from "../../src/interfaces/IAIOracle.sol";
 import {IRandOracle} from "../../src/interfaces/IRandOracle.sol";
+import "./ExistingDeploymentParser.sol";
 
 abstract contract DeployBase is ExistingDeploymentParser {
     address protocolFeeRecipient;
