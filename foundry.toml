@@ -18,6 +18,10 @@ via_ir = false
 # Override the Solidity version (this overrides `auto_detect_solc`)
 solc_version = '0.8.28'
 
+[invariant]
+runs = 1000
+depth = 1000
+
 [fmt]
 bracket_spacing = false
 int_types = "long"
