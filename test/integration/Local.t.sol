@@ -7,6 +7,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ICurve} from "../../src/interfaces/ICurve.sol";
 import {IPair} from "../../src/interfaces/IPair.sol";
 import {ERC7007Launch} from "../../src/ERC7007Launch.sol";
+import {ORAERC7007Impl} from "../../src/nft/ORAERC7007Impl.sol";
 import {IntegrationBase} from "./IntegrationBase.t.sol";
 import {MockAIOracle} from "../mocks/MockAIOracle.t.sol";
 import {MockRandOracle} from "../mocks/MockRandOracle.t.sol";
@@ -90,8 +91,14 @@ contract Integration_Local is IntegrationBase {
         uint256 totalPrice = ICurve(bondingCurves[0].addr).getBuyPrice(0, totalSupply);
         assertEq(pair.balance >= totalPrice, true);
 
+        bytes memory aigcDataBefore = ORAERC7007Impl(nft).aigcDataOf(0);
+        assertEq(aigcDataBefore.length, 0);
+
         _invokeRandOracle();
         _invokeAIOracle();
+
+        bytes memory aigcDataAFter = ORAERC7007Impl(nft).aigcDataOf(0);
+        assertGt(aigcDataAFter.length, 0);
     }
 
     function testFuzz_Launch_WithoutPresale(
@@ -166,8 +173,14 @@ contract Integration_Local is IntegrationBase {
         uint256 percent = (pair.balance - totalPrice) * 10_000 / pair.balance;
         assertEq(percent <= 1, true);
 
+        bytes memory aigcDataBefore = ORAERC7007Impl(nft).aigcDataOf(0);
+        assertEq(aigcDataBefore.length, 0);
+
         _invokeRandOracle();
         _invokeAIOracle();
+
+        bytes memory aigcDataAFter = ORAERC7007Impl(nft).aigcDataOf(0);
+        assertGt(aigcDataAFter.length, 0);
     }
 
     function _invokeRandOracle() internal {

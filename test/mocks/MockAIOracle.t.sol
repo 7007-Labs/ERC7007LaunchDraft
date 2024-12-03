@@ -18,6 +18,7 @@ contract MockAIOracle {
         address callbackContract;
         uint64 gasLimit;
         bytes callbackData;
+        uint256 batchSize;
     }
 
     mapping(uint256 => RequestData) requests;
@@ -86,6 +87,7 @@ contract MockAIOracle {
         request.callbackContract = callbackContract;
         request.gasLimit = gasLimit;
         request.callbackData = callbackData;
+        request.batchSize = batchSize;
 
         return requestId;
     }
@@ -130,26 +132,7 @@ contract MockAIOracle {
         uint256 requestId
     ) public view returns (bytes memory) {
         RequestData storage request = requests[requestId];
-        bytes memory data = request.input;
-        uint256 count = 0;
-        bytes memory target = '"seed"';
-        for (uint256 i = 0; i <= data.length - target.length; i++) {
-            bool isMatched = true;
-
-            for (uint256 j = 0; j < target.length; j++) {
-                if (data[i + j] != target[j]) {
-                    isMatched = false;
-                    break;
-                }
-            }
-
-            if (isMatched) {
-                count++;
-            }
-        }
-
-        if (count == 0) count = 1;
-        return makeOutput(count);
+        return makeOutput(request.batchSize);
     }
 
     function makeOutput(

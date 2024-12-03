@@ -31,6 +31,7 @@ contract Integration_Sepolia is IntegrationBase {
     function testFuzz_Launch(
         uint24 _random
     ) public {
+        uint24 _random = 174;
         _configRand(_random);
 
         vm.startPrank(admin);

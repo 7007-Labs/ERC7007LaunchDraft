@@ -91,6 +91,7 @@ contract ORAERC7007Impl is
     error InvalidTotalSupply();
     error InvalidDataLength();
     error InvalidCIDLength();
+    error InvalidSeedRange();
 
     modifier onlySelf() {
         if (msg.sender != address(this)) revert UnauthorizedCaller();
@@ -280,9 +281,10 @@ contract ORAERC7007Impl is
         uint256 size = tokenIds.length;
         if (size == 0) revert InvalidRequestId();
 
+        uint256 baseSeed = output ^ uint256(keccak256(abi.encodePacked(requestId, block.timestamp)));
         uint256[] memory seeds = new uint256[](size);
         for (uint256 i = 0; i < size;) {
-            uint256 seed = output ^ uint256(keccak256(abi.encodePacked(tokenIds[i])));
+            uint256 seed = baseSeed + i;
             seeds[i] = seed;
             seedOf[tokenIds[i]] = seed;
             unchecked {
@@ -299,7 +301,7 @@ contract ORAERC7007Impl is
             return;
         }
 
-        bytes memory batchPrompt = _buildBatchPrompt(seeds);
+        bytes memory batchPrompt = _buildBatchPrompt(baseSeed, baseSeed + size - 1);
         bytes memory _callbackData = abi.encode(requestId);
         uint256 aiOracleRequestId =
             _requestAIOracle(delegateCaller, aiOracleFee, size, batchPrompt, aiOracleGasLimit, _callbackData);
@@ -365,15 +367,11 @@ contract ORAERC7007Impl is
             revert InsufficientBalance();
         }
 
-        uint256[] memory seeds = new uint256[](size);
-        for (uint256 i = 0; i < size;) {
-            seeds[i] = seedOf[tokenIds[i]];
-            unchecked {
-                ++i;
-            }
-        }
+        uint256 baseSeed = seedOf[tokenIds[0]];
+        uint256 lastTokenSeed = seedOf[tokenIds[size - 1]];
+        if (lastTokenSeed != baseSeed + size - 1) revert InvalidSeedRange();
 
-        bytes memory batchPrompt = _buildBatchPrompt(seeds);
+        bytes memory batchPrompt = _buildBatchPrompt(baseSeed, lastTokenSeed);
         bytes memory callbackData = abi.encode(requestId);
         uint256 aiOracleRequestId =
             _requestAIOracle(delegateCaller, aiOracleFee, size, batchPrompt, aiOracleGasLimit, callbackData);
@@ -523,50 +521,16 @@ contract ORAERC7007Impl is
         );
     }
 
-    function _buildBatchPrompt(
-        uint256[] memory seeds
-    ) internal view returns (bytes memory) {
-        uint256 estimatedLength = 2; // '[' and ']'
-        string memory _basePrompt = basePrompt;
-        uint256 basePromptLength = bytes(_basePrompt).length;
-        estimatedLength += seeds.length
-            * (
-                basePromptLength // prompt string
-                    + 78 // seed number (max uint256 length in decimal)
-                    + 22
-            ); // {"prompt":"","seed":}, fixed parts
-        bytes memory batchPrompt = new bytes(estimatedLength);
-        uint256 ptr = 0;
-        batchPrompt[ptr++] = "[";
-
-        for (uint256 i = 0; i < seeds.length;) {
-            if (i > 0) {
-                batchPrompt[ptr++] = ",";
-            }
-
-            bytes memory prompt = _buildPrompt(_basePrompt, seeds[i]);
-            uint256 promptLength = prompt.length;
-
-            assembly {
-                let srcPtr := add(prompt, 32)
-                let destPtr := add(add(batchPrompt, 32), ptr)
-                for { let j := 0 } lt(j, promptLength) { j := add(j, 32) } {
-                    mstore(destPtr, mload(srcPtr))
-                    srcPtr := add(srcPtr, 32)
-                    destPtr := add(destPtr, 32)
-                }
-            }
-            ptr += promptLength;
-            unchecked {
-                ++i;
-            }
+    function _buildBatchPrompt(uint256 seedStart, uint256 seedEnd) internal view returns (bytes memory) {
+        bytes memory seedPart;
+        if (seedStart == seedEnd) {
+            seedPart = abi.encodePacked('"seed":', Strings.toString(seedStart));
+        } else {
+            seedPart =
+                abi.encodePacked('"seed_range":[', Strings.toString(seedStart), ",", Strings.toString(seedEnd), "]");
         }
 
-        batchPrompt[ptr++] = "]";
-        assembly {
-            mstore(batchPrompt, ptr)
-        }
-        return batchPrompt;
+        return abi.encodePacked('[{"prompt":"', basePrompt, '",', seedPart, "}]");
     }
 
     function _buildPrompt(string memory prompt, uint256 seed) internal pure returns (bytes memory) {
