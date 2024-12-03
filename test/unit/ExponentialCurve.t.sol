@@ -37,11 +37,26 @@ contract ExponentialCurveTest is Test {
         uint256 price = curve.getBuyPrice(77, 10);
         assertEq(price, 1_609_151_099_447_434, "Buy price incorrect");
 
-        price = curve.getSellPrice(87, 10);
-        assertEq(price, 1_609_151_099_447_432, "Sell price incorrect");
+        price = curve.getSellPrice(1775, 10);
+        assertEq(price, 4_580_901_365_729_793, "Sell price incorrect");
 
         price = curve.getBuyPrice(7007, 1);
         assertEq(price, 11_768_282_715_324_656, "Buy price incorrect");
+    }
+
+    function test_BatchSellAndSingleSell() external view {
+        uint256 batchSellPrice = curve.getSellPrice(87, 10);
+        assertEq(batchSellPrice, 1_609_151_099_447_432, "Sell price incorrect");
+
+        uint256 price = 0;
+        uint256 supply = 87;
+        for (uint256 i; i < 10; i++) {
+            price += curve.getSellPrice(supply, 1);
+            supply -= 1;
+        }
+        uint256 diff = price > batchSellPrice ? price - batchSellPrice : batchSellPrice - price;
+        // precision loss
+        assertEq(diff <= 2 * 10, true, "Sell price incorrect");
     }
 
     function test_GetBuyPrice_ZeroNumItems() external {

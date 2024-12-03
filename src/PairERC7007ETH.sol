@@ -10,6 +10,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {LibBit} from "@solady/utils/LibBit.sol";
+import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 import {PairType} from "./enums/PairType.sol";
 import {PairVariant} from "./enums/PairVariant.sol";
@@ -27,6 +28,7 @@ import {IORAERC7007} from "./interfaces/IORAERC7007.sol";
 contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using Address for address payable;
     using BitMaps for BitMaps.BitMap;
+    using SafeMath for uint256;
 
     /// @dev Fee in basis points (1%)
     uint16 public constant DEFAULT_FEE_BPS = 100;
@@ -51,7 +53,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
     event SwapNFTInPair(uint256 amountOut, uint256[] ids);
     event SwapNFTOutPair(uint256 amountIn, uint256[] ids);
-    event PresaleMerkleRootUpdate(bytes32 newRoot);
+    event PresaleMerkleRootUpdate(address indexed operator, bytes32 newRoot);
 
     error ZeroAddress();
     error InvalidNFTTotalSupply();
@@ -329,7 +331,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     ) public onlyOwner {
         require(block.timestamp < salesConfig.presaleStart, "Presale has already started");
         salesConfig.presaleMerkleRoot = newRoot;
-        emit PresaleMerkleRootUpdate(newRoot);
+        emit PresaleMerkleRootUpdate(msg.sender, newRoot);
     }
 
     /**
@@ -446,7 +448,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
             require(_salesConfig.maxPresalePurchasePerAddress > 0, "maxPresalePurchasePerAddress should not be zero");
 
             uint256 minimumAmount = _salesConfig.bondingCurve.getBuyPrice(0, _salesConfig.presaleMaxNum);
-            uint256 amount = _salesConfig.presalePrice * _salesConfig.presaleMaxNum;
+            uint256 amount = _salesConfig.presalePrice.mul(_salesConfig.presaleMaxNum);
             require(amount >= minimumAmount, "The price and maxNum of presale is invalid");
         } else {
             // not in presale mode, don't need some checks

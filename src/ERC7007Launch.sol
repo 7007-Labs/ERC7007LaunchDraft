@@ -63,6 +63,8 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
 
     bool public isEnableWhitelist;
 
+    event NFTCollectionCreated(address indexed collection, address indexed provider, string prompt);
+    event PairCreated(address indexed pair, address indexed collection, PairType pairType);
     event WhitelistMerkleRootUpdated(bytes32 newRoot);
     event WhitelistStateChanged(bool isEnabled);
 
@@ -110,11 +112,17 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         LaunchParams calldata params,
         bytes32[] calldata productWhitelistProof
     ) external payable whenNotPaused returns (address pair) {
-        _checkWhitelist(productWhitelistProof);
+        if (isEnableWhitelist) checkWhitelist(productWhitelistProof);
+
+        require(params.bondingCurve != address(0), "Invalid bonding curve");
+        require(params.provider != address(0), "Invalid provider");
+        require(params.presaleEnd == 0 || params.presaleEnd > params.presaleStart, "Invalid presale period");
+        require(params.presaleMaxNum < NFT_TOTAL_SUPPLY, "Invalid presale max num");
 
         address collection = INFTCollectionFactory(nftCollectionFactory).createNFTCollection(
             msg.sender, params.prompt, params.metadataInitializer, params.provider, params.providerParams
         );
+        emit NFTCollectionCreated(collection, params.provider, params.prompt);
 
         IPair.SalesConfig memory salesConfig = IPair.SalesConfig({
             maxPresalePurchasePerAddress: MAX_PRESALE_PER_ADDRESS,
@@ -137,13 +145,14 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
             address(0), // No property checker needed
             data
         );
+        emit PairCreated(pair, collection, PairType.LAUNCH);
 
         // Activate NFT collection
         IORAERC7007(collection).activate(NFT_TOTAL_SUPPLY, pair, pair);
 
         // non presale model
-        if (params.presaleEnd == 0) {
-            uint256 amount = _initailBuy(pair, params.initialBuyNum);
+        if (params.presaleEnd == 0 && params.initialBuyNum > 0) {
+            uint256 amount = _initialBuy(pair, params.initialBuyNum);
             _refundTokenToSender(amount);
         }
     }
@@ -167,7 +176,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         bytes32[] calldata presaleMerkleProof,
         bytes32[] calldata productWhitelistProof
     ) external payable whenNotPaused returns (uint256 purchasedNftNum, uint256 amount) {
-        _checkWhitelist(productWhitelistProof);
+        checkWhitelist(productWhitelistProof);
         (purchasedNftNum, amount) = IPair(pair).purchasePresale{value: msg.value}(
             nftNum, maxExpectedTokenInput, nftRecipient, presaleMerkleProof, true, msg.sender
         );
@@ -191,7 +200,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         address nftRecipient,
         bytes32[] calldata productWhitelistProof
     ) external payable whenNotPaused returns (uint256 purchasedNftNum, uint256 amount) {
-        _checkWhitelist(productWhitelistProof);
+        checkWhitelist(productWhitelistProof);
 
         (purchasedNftNum, amount) = IPair(pair).swapTokenForNFTs{value: msg.value}(
             nftNum, maxExpectedTokenInput, nftRecipient, true, msg.sender
@@ -219,7 +228,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         address nftRecipient,
         bytes32[] calldata productWhitelistProof
     ) external payable whenNotPaused returns (uint256 purchasedNftNum, uint256 amount) {
-        _checkWhitelist(productWhitelistProof);
+        checkWhitelist(productWhitelistProof);
         (purchasedNftNum, amount) = IPair(pair).swapTokenForSpecificNFTs{value: msg.value}(
             tokenIds, minNFTNum, maxExpectedTokenInput, nftRecipient, true, msg.sender
         );
@@ -242,7 +251,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         address payable tokenRecipient,
         bytes32[] calldata productWhitelistProof
     ) external whenNotPaused returns (uint256) {
-        _checkWhitelist(productWhitelistProof);
+        checkWhitelist(productWhitelistProof);
         return IPair(pair).swapNFTsForToken(tokenIds, minExpectedTokenOutput, tokenRecipient, true, msg.sender);
     }
 
@@ -321,20 +330,18 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         return price + fee + randOracleFee + aiOracleFee;
     }
 
-    function _initailBuy(address pair, uint256 num) internal returns (uint256 amount) {
+    function _initialBuy(address pair, uint256 num) internal returns (uint256 amount) {
         (, amount) = IPair(pair).swapTokenForNFTs{value: msg.value}(num, msg.value, msg.sender, true, msg.sender);
     }
 
     /**
-     * @dev Internal function to verify if sender is whitelisted
+     * @dev verify if sender is whitelisted
      * @param proof Merkle proof for whitelist verification
      */
-    function _checkWhitelist(
+    function checkWhitelist(
         bytes32[] calldata proof
-    ) internal view {
-        if (isEnableWhitelist) {
-            if (!verifyWhitelistAddress(msg.sender, proof)) revert CallerNotWhitelisted();
-        }
+    ) public view {
+        if (!verifyWhitelistAddress(msg.sender, proof)) revert CallerNotWhitelisted();
     }
 
     /// @dev Refunds excess ETH to sender
