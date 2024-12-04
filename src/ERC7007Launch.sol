@@ -63,8 +63,6 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
 
     bool public isEnableWhitelist;
 
-    event NFTCollectionCreated(address indexed collection, address indexed provider, string prompt);
-    event PairCreated(address indexed pair, address indexed collection, PairType pairType);
     event WhitelistMerkleRootUpdated(bytes32 newRoot);
     event WhitelistStateChanged(bool isEnabled);
 
@@ -122,7 +120,6 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         address collection = INFTCollectionFactory(nftCollectionFactory).createNFTCollection(
             msg.sender, params.prompt, params.metadataInitializer, params.provider, params.providerParams
         );
-        emit NFTCollectionCreated(collection, params.provider, params.prompt);
 
         IPair.SalesConfig memory salesConfig = IPair.SalesConfig({
             maxPresalePurchasePerAddress: MAX_PRESALE_PER_ADDRESS,
@@ -145,7 +142,6 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
             address(0), // No property checker needed
             data
         );
-        emit PairCreated(pair, collection, PairType.LAUNCH);
 
         // Activate NFT collection
         IORAERC7007(collection).activate(NFT_TOTAL_SUPPLY, pair, pair);
