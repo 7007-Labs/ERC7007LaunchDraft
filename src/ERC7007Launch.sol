@@ -110,12 +110,14 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         LaunchParams calldata params,
         bytes32[] calldata productWhitelistProof
     ) external payable whenNotPaused returns (address pair) {
-        if (isEnableWhitelist) checkWhitelist(productWhitelistProof);
+        checkWhitelist(productWhitelistProof);
 
         require(params.bondingCurve != address(0), "Invalid bonding curve");
         require(params.provider != address(0), "Invalid provider");
         require(params.presaleEnd == 0 || params.presaleEnd > params.presaleStart, "Invalid presale period");
-        require(params.presaleMaxNum < NFT_TOTAL_SUPPLY, "Invalid presale max num");
+        if (params.presaleEnd == 0) {
+            require(params.presaleMaxNum > 0 && params.presaleMaxNum < NFT_TOTAL_SUPPLY, "Invalid presale max num");
+        }
 
         address collection = INFTCollectionFactory(nftCollectionFactory).createNFTCollection(
             msg.sender, params.prompt, params.metadataInitializer, params.provider, params.providerParams
@@ -147,7 +149,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         IORAERC7007(collection).activate(NFT_TOTAL_SUPPLY, pair, pair);
 
         // non presale model
-        if (params.presaleEnd == 0 && params.initialBuyNum > 0) {
+        if (params.presaleEnd == 0) {
             uint256 amount = _initialBuy(pair, params.initialBuyNum);
             _refundTokenToSender(amount);
         }
@@ -337,6 +339,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
     function checkWhitelist(
         bytes32[] calldata proof
     ) public view {
+        if (!isEnableWhitelist) return;
         if (!verifyWhitelistAddress(msg.sender, proof)) revert CallerNotWhitelisted();
     }
 

@@ -53,7 +53,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
 
     event SwapNFTInPair(uint256 amountOut, uint256[] ids);
     event SwapNFTOutPair(uint256 amountIn, uint256[] ids);
-    event PresaleMerkleRootUpdate(address indexed operator, bytes32 newRoot);
+    event PresaleMerkleRootUpdate(bytes32 newRoot);
 
     error ZeroAddress();
     error InvalidNFTTotalSupply();
@@ -331,7 +331,7 @@ contract PairERC7007ETH is IPair, Initializable, OwnableUpgradeable, ReentrancyG
     ) public onlyOwner {
         require(block.timestamp < salesConfig.presaleStart, "Presale has already started");
         salesConfig.presaleMerkleRoot = newRoot;
-        emit PresaleMerkleRootUpdate(msg.sender, newRoot);
+        emit PresaleMerkleRootUpdate(newRoot);
     }
 
     /**
