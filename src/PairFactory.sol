@@ -41,7 +41,7 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
     event RouterStatusUpdate(address indexed router, bool isAllowed);
     event BondingCurveStatusUpdate(address indexed bondingCurve, bool isAllowed);
     event AllowlistStatusUpdate(address indexed addr, bool isAllowed);
-    event NewPair(address indexed pair, address nft, PairType pairType, address propertyChecker);
+    event NewPair(address indexed pair, address nft, PairType pairType, address operator);
 
     error ZeroAddress();
     error UnauthorizedCaller();
@@ -105,7 +105,7 @@ contract PairFactory is IPairFactory, Initializable, OwnableUpgradeable, UUPSUpg
 
             oraOracleDelegateCaller.addToAllowlist(_nft);
 
-            emit NewPair(pair, _nft, _pairType, _propertyChecker);
+            emit NewPair(pair, _nft, _pairType, msg.sender);
         } else {
             revert WrongPairType();
         }
