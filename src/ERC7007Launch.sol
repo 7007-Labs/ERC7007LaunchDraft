@@ -115,7 +115,7 @@ contract ERC7007Launch is Whitelist, Initializable, OwnableUpgradeable, UUPSUpgr
         require(params.bondingCurve != address(0), "Invalid bonding curve");
         require(params.provider != address(0), "Invalid provider");
         require(params.presaleEnd == 0 || params.presaleEnd > params.presaleStart, "Invalid presale period");
-        if (params.presaleEnd == 0) {
+        if (params.presaleEnd > 0) {
             require(params.presaleMaxNum > 0 && params.presaleMaxNum < NFT_TOTAL_SUPPLY, "Invalid presale max num");
         }
 
