@@ -43,7 +43,7 @@ interface IPair {
         uint256 assetId,
         uint256 numItems,
         bool isPick
-    ) external view returns (uint256 inputAmount, uint256 aigcAmount, uint256 royaltyAmount);
+    ) external view returns (uint256 inputAmount, uint256 revealFee, uint256 royaltyAmount);
 
     function getSellNFTQuote(
         uint256 assetId,
@@ -53,7 +53,7 @@ interface IPair {
     function getPresaleQuote(
         uint256 assetId,
         uint256 numItems
-    ) external view returns (uint256 inputAmount, uint256 aigcAmount, uint256 royaltyAmount);
+    ) external view returns (uint256 inputAmount, uint256 revealFee, uint256 royaltyAmount);
 
     function purchasePresale(
         uint256 nftNum,

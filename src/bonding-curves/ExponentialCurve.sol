@@ -17,13 +17,13 @@ contract ExponentialCurve is ICurve {
         return CURVE_MULTIPLIER.mul(gap);
     }
 
-    /// @notice 计算购买 numItems NFT 的价格
+    /// @notice Calculate the price of purchasing numItems NFTs
     function getBuyPrice(uint256 totalSupply, uint256 numItems) external pure returns (uint256 inputValue) {
         require(numItems > 0, "numItems must be greater than 0");
         return getPrice(convert(totalSupply), convert(numItems)).intoUint256() + 2;
     }
 
-    /// @notice 计算卖出 numItems NFT 的价格
+    /// @notice Calculate the price of selling numItems NFTs
     function getSellPrice(uint256 totalSupply, uint256 numItems) external pure returns (uint256 outputValue) {
         require(totalSupply > 0 && numItems > 0, "totalSupply and numItems must be greater than 0");
         return getPrice(convert(totalSupply - numItems), convert(numItems)).intoUint256();

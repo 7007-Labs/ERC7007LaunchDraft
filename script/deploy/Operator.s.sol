@@ -54,6 +54,20 @@ contract Operator is DeployBase {
         console.log("Launched nft address:", nft);
     }
 
+    function swapNFT(address pair, uint256 nftNum, string calldata productWhitelistProof) public {
+        loadContractAddresses();
+        bytes32[] memory proof = _parseProof(productWhitelistProof);
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address user = vm.addr(deployerPrivateKey);
+        vm.startBroadcast(deployerPrivateKey);
+        (uint256 amount, uint256 revealFee,) = IPair(pair).getBuyNFTQuote(0, nftNum, false);
+        erc7007LaunchProxy.swapTokenForNFTs{value: amount}(pair, nftNum, amount, user, proof);
+        vm.stopPrank();
+        console.log("Bought nft:", nftNum);
+        console.log("Bought nft reveal fee:", revealFee);
+        console.log("Bought nft cost:", amount);
+    }
+
     // Helper function to parse comma-separated hex strings into bytes32 array
     function _parseProof(
         string memory proofStr
