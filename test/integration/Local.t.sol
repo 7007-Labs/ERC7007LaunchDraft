@@ -20,7 +20,6 @@ contract Integration_Local is IntegrationBase {
         _configRand(_random);
 
         vm.prank(admin);
-        erc7007LaunchProxy.setWhitelistMerkleRoot(usersMerkleRoot);
 
         ERC7007Launch.LaunchParams memory params;
         uint256 promptIndex = _randUint(0, 3);
@@ -39,7 +38,7 @@ contract Integration_Local is IntegrationBase {
         params.presaleMerkleRoot = usersMerkleRoot;
 
         vm.prank(user1);
-        address pair = erc7007LaunchProxy.launch(params, user1Proof);
+        address pair = erc7007LaunchProxy.launch(params);
         address nft = IPair(pair).nft();
         assertEq(IPair(pair).owner(), user1);
 
@@ -47,7 +46,7 @@ contract Integration_Local is IntegrationBase {
         vm.deal(user2, 1 ether);
         vm.startPrank(user2);
         (amount,,) = IPair(pair).getPresaleQuote(0, 1);
-        erc7007LaunchProxy.purchasePresaleNFTs{value: amount + 123}(pair, 1, 1 ether, user2, user2Proof, user2Proof);
+        erc7007LaunchProxy.purchasePresaleNFTs{value: amount + 123}(pair, 1, 1 ether, user2, user2Proof);
         vm.stopPrank();
 
         vm.warp(block.timestamp + 3 days);
@@ -55,7 +54,7 @@ contract Integration_Local is IntegrationBase {
         uint256 nftNum = _randUint(2, 100);
         (amount,,) = IPair(pair).getBuyNFTQuote(0, nftNum, false);
         vm.prank(user2);
-        erc7007LaunchProxy.swapTokenForNFTs{value: amount}(pair, nftNum, amount, user2, user2Proof);
+        erc7007LaunchProxy.swapTokenForNFTs{value: amount}(pair, nftNum, amount, user2);
 
         uint256[] memory tokenIds = new uint256[](nftNum);
         uint256 count = 0;
@@ -78,15 +77,13 @@ contract Integration_Local is IntegrationBase {
 
         (amount,) = IPair(pair).getSellNFTQuote(0, tokenIds.length);
         vm.prank(user2);
-        erc7007LaunchProxy.swapNFTsForToken(pair, tokenIds, amount, payable(user2), user2Proof);
+        erc7007LaunchProxy.swapNFTsForToken(pair, tokenIds, amount, payable(user2));
 
         (amount,,) = IPair(pair).getBuyNFTQuote(0, tokenIds.length, true);
         vm.deal(user3, 1 ether);
 
         vm.prank(user3);
-        erc7007LaunchProxy.swapTokenForSpecificNFTs{value: amount}(
-            pair, tokenIds, tokenIds.length, amount, user3, user3Proof
-        );
+        erc7007LaunchProxy.swapTokenForSpecificNFTs{value: amount}(pair, tokenIds, tokenIds.length, amount, user3);
         uint256 totalSupply = 7007 - IERC721(nft).balanceOf(pair);
         uint256 totalPrice = ICurve(bondingCurves[0].addr).getBuyPrice(0, totalSupply);
         assertEq(pair.balance >= totalPrice, true);
@@ -107,8 +104,6 @@ contract Integration_Local is IntegrationBase {
         _configRand(_random);
 
         vm.prank(admin);
-        erc7007LaunchProxy.setWhitelistMerkleRoot(usersMerkleRoot);
-
         ERC7007Launch.LaunchParams memory params;
         uint256 promptIndex = _randUint(0, 3);
         string memory prompt = prompts[promptIndex];
@@ -125,7 +120,7 @@ contract Integration_Local is IntegrationBase {
 
         vm.deal(user1, 1 ether);
         vm.prank(user1);
-        address pair = erc7007LaunchProxy.launch{value: amount}(params, user1Proof);
+        address pair = erc7007LaunchProxy.launch{value: amount}(params);
         address nft = IPair(pair).nft();
         assertEq(IPair(pair).owner(), user1);
 
@@ -133,7 +128,7 @@ contract Integration_Local is IntegrationBase {
         vm.deal(user2, 1 ether);
         (amount,,) = IPair(pair).getBuyNFTQuote(0, nftNum, false);
         vm.prank(user2);
-        erc7007LaunchProxy.swapTokenForNFTs{value: amount}(pair, nftNum, amount, user2, user2Proof);
+        erc7007LaunchProxy.swapTokenForNFTs{value: amount}(pair, nftNum, amount, user2);
 
         uint256[] memory tokenIds = new uint256[](nftNum);
         uint256 startTokenId = params.initialBuyNum;
@@ -157,15 +152,13 @@ contract Integration_Local is IntegrationBase {
 
         (amount,) = IPair(pair).getSellNFTQuote(0, tokenIds.length);
         vm.prank(user2);
-        erc7007LaunchProxy.swapNFTsForToken(pair, tokenIds, amount, payable(user2), user2Proof);
+        erc7007LaunchProxy.swapNFTsForToken(pair, tokenIds, amount, payable(user2));
 
         (amount,,) = IPair(pair).getBuyNFTQuote(0, tokenIds.length, true);
         vm.deal(user3, 1 ether);
 
         vm.prank(user3);
-        erc7007LaunchProxy.swapTokenForSpecificNFTs{value: amount}(
-            pair, tokenIds, tokenIds.length, amount, user3, user3Proof
-        );
+        erc7007LaunchProxy.swapTokenForSpecificNFTs{value: amount}(pair, tokenIds, tokenIds.length, amount, user3);
 
         uint256 totalSupply = 7007 - IERC721(nft).balanceOf(pair);
         uint256 totalPrice = ICurve(bondingCurves[0].addr).getBuyPrice(0, totalSupply);

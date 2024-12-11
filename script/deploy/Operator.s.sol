@@ -13,23 +13,12 @@ contract Operator is DeployBase {
         verifyDeploy();
     }
 
-    function configProductWhitelist(
-        bytes32 root
-    ) public {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        loadContractAddresses();
-        vm.startBroadcast(deployerPrivateKey);
-        erc7007LaunchProxy.setWhitelistMerkleRoot(root);
-        vm.stopBroadcast();
-    }
-
     function launch(
         string calldata name,
         string calldata symbol,
         string calldata description,
         string calldata prompt,
-        uint256 initialBuyNum,
-        string calldata productWhitelistProof
+        uint256 initialBuyNum
     ) public {
         loadContractAddresses();
 
@@ -42,11 +31,10 @@ contract Operator is DeployBase {
         params.provider = aiOracle;
         params.providerParams = abi.encode(50);
 
-        bytes32[] memory proof = _parseProof(productWhitelistProof);
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
         uint256 fee = erc7007LaunchProxy.estimateLaunchFee(params, aiOracle, randOracle);
-        address pair = erc7007LaunchProxy.launch{value: fee}(params, proof);
+        address pair = erc7007LaunchProxy.launch{value: fee}(params);
         vm.stopBroadcast();
         console.log("Launched fee:", fee);
         console.log("Launched pair address:", pair);
@@ -54,14 +42,13 @@ contract Operator is DeployBase {
         console.log("Launched nft address:", nft);
     }
 
-    function swapNFT(address pair, uint256 nftNum, string calldata productWhitelistProof) public {
+    function swapNFT(address pair, uint256 nftNum) public {
         loadContractAddresses();
-        bytes32[] memory proof = _parseProof(productWhitelistProof);
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address user = vm.addr(deployerPrivateKey);
         vm.startBroadcast(deployerPrivateKey);
         (uint256 amount, uint256 revealFee,) = IPair(pair).getBuyNFTQuote(0, nftNum, false);
-        erc7007LaunchProxy.swapTokenForNFTs{value: amount}(pair, nftNum, amount, user, proof);
+        erc7007LaunchProxy.swapTokenForNFTs{value: amount}(pair, nftNum, amount, user);
         vm.stopPrank();
         console.log("Bought nft:", nftNum);
         console.log("Bought nft reveal fee:", revealFee);

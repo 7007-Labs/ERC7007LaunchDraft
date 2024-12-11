@@ -1,6 +1,4 @@
-## ERC7007LaunchDraft
-
-功能验证阶段
+## ERC7007Launch
 
 ### Architecture
 

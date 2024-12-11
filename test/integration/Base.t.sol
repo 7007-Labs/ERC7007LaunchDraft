@@ -34,7 +34,6 @@ contract Integration_Base is IntegrationBase {
         _configRand(_random);
 
         vm.startPrank(admin);
-        erc7007LaunchProxy.setWhitelistMerkleRoot(usersMerkleRoot);
         nftCollectionFactoryProxy.setProviderAllowed(aiOracle, true);
         vm.stopPrank();
 
@@ -54,7 +53,7 @@ contract Integration_Base is IntegrationBase {
 
         vm.deal(user1, 1 ether);
         vm.prank(user1);
-        address pair = erc7007LaunchProxy.launch{value: amount}(params, user1Proof);
+        address pair = erc7007LaunchProxy.launch{value: amount}(params);
         address nft = IPair(pair).nft();
         assertEq(IPair(pair).owner(), user1);
         assertEq(IERC721(nft).balanceOf(user1), params.initialBuyNum);

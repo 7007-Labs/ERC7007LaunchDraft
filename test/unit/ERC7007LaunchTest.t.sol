@@ -29,46 +29,8 @@ contract ERC7007LaunchTest is Test {
     }
 
     function test_InitialState() public view {
-        assertTrue(launch.isEnableWhitelist());
         assertFalse(launch.paused());
         assertEq(launch.owner(), owner);
-    }
-
-    function test_Revert_SetWhitelistMerkleRoot_OnlyOwner() public {
-        vm.prank(user);
-        vm.expectRevert();
-        launch.setWhitelistMerkleRoot(bytes32(0));
-
-        vm.startPrank(owner);
-        launch.setWhitelistMerkleRoot(bytes32(0));
-        launch.disableWhitelist();
-        vm.stopPrank();
-    }
-
-    function test_DisableWhitelist() public {
-        vm.prank(owner);
-        launch.disableWhitelist();
-        assertFalse(launch.isEnableWhitelist());
-    }
-
-    function test_Revert_DisableWhitelist_OnlyOwner() public {
-        vm.prank(user);
-        vm.expectRevert();
-        launch.disableWhitelist();
-    }
-
-    function test_EnableWhitelist() public {
-        vm.startPrank(owner);
-        launch.disableWhitelist();
-        launch.enableWhitelist();
-        vm.stopPrank();
-        assertTrue(launch.isEnableWhitelist());
-    }
-
-    function test_Revert_EnableWhitelist_OnlyOwner() public {
-        vm.prank(user);
-        vm.expectRevert();
-        launch.enableWhitelist();
     }
 
     function test_Pause() public {
@@ -106,79 +68,20 @@ contract ERC7007LaunchTest is Test {
 
         ERC7007Launch.LaunchParams memory params;
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        launch.launch(params, new bytes32[](0));
+        launch.launch(params);
 
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        launch.purchasePresaleNFTs(address(0), 1, 1 ether, address(0), new bytes32[](0), new bytes32[](0));
+        launch.purchasePresaleNFTs(address(0), 1, 1 ether, address(0), new bytes32[](0));
 
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        launch.swapTokenForNFTs(address(0), 1, 1 ether, address(0), new bytes32[](0));
+        launch.swapTokenForNFTs(address(0), 1, 1 ether, address(0));
 
         uint256[] memory tokenIds = new uint256[](1);
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        launch.swapTokenForSpecificNFTs(address(0), tokenIds, 1, 1 ether, address(0), new bytes32[](0));
+        launch.swapTokenForSpecificNFTs(address(0), tokenIds, 1, 1 ether, address(0));
 
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        launch.swapNFTsForToken(address(0), tokenIds, 1 ether, payable(address(0)), new bytes32[](0));
-    }
-
-    function test_WhitelistVerification() public {
-        bytes32[] memory invalidProof = new bytes32[](1);
-        invalidProof[0] = bytes32(0);
-
-        ERC7007Launch.LaunchParams memory params;
-        vm.expectRevert(ERC7007Launch.CallerNotWhitelisted.selector);
-        launch.launch(params, invalidProof);
-
-        vm.expectRevert(ERC7007Launch.CallerNotWhitelisted.selector);
-        launch.purchasePresaleNFTs(pair, 1, 1 ether, address(0), invalidProof, invalidProof);
-
-        vm.expectRevert(ERC7007Launch.CallerNotWhitelisted.selector);
-        launch.swapTokenForNFTs(pair, 1, 1 ether, address(0), invalidProof);
-
-        uint256[] memory tokenIds = new uint256[](1);
-        vm.expectRevert(ERC7007Launch.CallerNotWhitelisted.selector);
-        launch.swapTokenForSpecificNFTs(pair, tokenIds, 1, 1 ether, address(0), invalidProof);
-
-        vm.expectRevert(ERC7007Launch.CallerNotWhitelisted.selector);
-        launch.swapNFTsForToken(pair, tokenIds, 1 ether, payable(address(0)), invalidProof);
-    }
-
-    function test_WhitelistBypassWhenDisabled() public {
-        vm.prank(owner);
-        launch.disableWhitelist();
-
-        bytes32[] memory invalidProof = new bytes32[](1);
-        invalidProof[0] = bytes32(0);
-
-        launch.purchasePresaleNFTs(pair, 1, 1 ether, address(0), invalidProof, invalidProof);
-
-        launch.swapTokenForNFTs(pair, 1, 1 ether, address(0), invalidProof);
-
-        uint256[] memory tokenIds = new uint256[](1);
-        launch.swapTokenForSpecificNFTs(pair, tokenIds, 1, 1 ether, address(0), invalidProof);
-
-        launch.swapNFTsForToken(pair, tokenIds, 1 ether, payable(address(0)), invalidProof);
-    }
-
-    function test_WhitelistByPassWithProof() public {
-        bytes32 root = 0xfeddcd9ebbb017ef7aedb6d5af6646b5cf1af84bfd1fc0bda8c59d068c3b12be;
-        bytes32[] memory proof = new bytes32[](1);
-        proof[0] = 0x4e2ef3f4d279d23ce0933035d8c8fb3ce41acb03aa29a326c527a6c76b912f6e; // proof for makeAddr("user")
-
-        vm.prank(owner);
-        launch.setWhitelistMerkleRoot(root);
-
-        vm.startPrank(user);
-        launch.purchasePresaleNFTs(pair, 1, 1 ether, address(0), new bytes32[](0), proof);
-
-        launch.swapTokenForNFTs(pair, 1, 1 ether, address(0), proof);
-
-        uint256[] memory tokenIds = new uint256[](1);
-        launch.swapTokenForSpecificNFTs(pair, tokenIds, 1, 1 ether, address(0), proof);
-
-        launch.swapNFTsForToken(pair, tokenIds, 1 ether, payable(address(0)), proof);
-        vm.stopPrank();
+        launch.swapNFTsForToken(address(0), tokenIds, 1 ether, payable(address(0)));
     }
 
     function test_GetInitialBuyQuote() public {
