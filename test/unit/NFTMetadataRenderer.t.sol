@@ -20,13 +20,13 @@ contract NFTMetadataRendererTest is Test {
         string memory mediaData = NFTMetadataRenderer.tokenMediaData("https://example.com/image.png", "");
 
         string memory aigcInfo =
-            NFTMetadataRenderer.tokenAIGCInfo("prompt", "aigcType", "aigcData", "proofType", "provider", "modelId");
+            NFTMetadataRenderer.tokenAIGCInfo("prompt", 10, "aigcType", "aigcData", "proofType", "provider", "modelId");
 
         bytes memory metadataJSON = NFTMetadataRenderer.createMetadataJSON("name", "description", mediaData, aigcInfo);
 
         assertEq(
             metadataJSON,
-            '{"name": "name", "description": "description", "image": "https://example.com/image.png", "prompt": "prompt", "aigc_type": "aigcType", "aigc_data": "aigcData", "proof_type": "proofType", "provider": "provider", "modelId": "modelId"}'
+            '{"name": "name", "description": "description", "image": "https://example.com/image.png", "prompt": "prompt", "seed": 10, "aigc_type": "aigcType", "aigc_data": "aigcData", "proof_type": "proofType", "provider": "provider", "modelId": "modelId"}'
         );
     }
 

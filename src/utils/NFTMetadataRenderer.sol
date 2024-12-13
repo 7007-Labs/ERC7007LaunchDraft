@@ -74,6 +74,7 @@ library NFTMetadataRenderer {
 
     /// @notice Creates a formatted string containing AI-generated content information
     /// @param prompt The prompt used to generate the content
+    /// @param seed The seed used to generate the content
     /// @param aigcType The type of AI-generated content
     /// @param aigcData Additional AI generation data
     /// @param proofType The type of proof for the AI generation
@@ -82,6 +83,7 @@ library NFTMetadataRenderer {
     /// @return A formatted string containing all AIGC-related information with appropriate JSON keys
     function tokenAIGCInfo(
         string memory prompt,
+        uint256 seed,
         string memory aigcType,
         string memory aigcData,
         string memory proofType,
@@ -92,7 +94,9 @@ library NFTMetadataRenderer {
             abi.encodePacked(
                 'prompt": "',
                 prompt,
-                '", "aigc_type": "',
+                '", "seed": ',
+                Strings.toString(seed),
+                ', "aigc_type": "',
                 aigcType,
                 '", "aigc_data": "',
                 aigcData,

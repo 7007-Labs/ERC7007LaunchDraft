@@ -401,6 +401,7 @@ contract ORAERC7007Impl is
         string memory mediaData = NFTMetadataRenderer.tokenMediaData(imageUrl, "");
         string memory aigcInfo = NFTMetadataRenderer.tokenAIGCInfo(
             basePrompt,
+            seedOf[tokenId],
             AIGC_TYPE,
             string(_aigcDataOf[tokenId].get()),
             PROOF_TYPE,
