@@ -11,7 +11,7 @@ library OracleGasEstimator {
         uint256 memoryGas = (wordSize * wordSize) / 512 + wordSize * 3; // memory expans cost
         uint256 totalGas = baseGas + memoryGas;
 
-        totalGas = totalGas * 110 / 100;
+        totalGas = totalGas * 111 / 100;
 
         if (totalGas > type(uint64).max) revert GaslimitOverflow();
         return uint64(totalGas);
@@ -20,12 +20,12 @@ library OracleGasEstimator {
     function getRandOracleCallbackGasLimit(uint256 num, uint256 promptLength) internal pure returns (uint64) {
         uint256 batchPromptLength = (num == 1 ? 101 : 188) + promptLength;
         uint256 slotNum = (batchPromptLength + 31) / 32;
-        uint256 baseGas = slotNum * 22_120 + num * 44_700 + 353_700;
-        uint256 wordSize = slotNum * 26;
+        uint256 baseGas = slotNum * 22_356 + num * 44_700 + 375_800;
+        uint256 wordSize = slotNum * 32;
         uint256 memoryGas = (wordSize * wordSize) / 512 + wordSize * 3;
         uint256 totalGas = baseGas + memoryGas;
 
-        totalGas = totalGas * 110 / 100;
+        totalGas = totalGas * 111 / 100;
 
         if (totalGas > type(uint64).max) revert GaslimitOverflow();
         return uint64(totalGas);
